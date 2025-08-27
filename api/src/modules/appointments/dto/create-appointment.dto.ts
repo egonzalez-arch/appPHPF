@@ -1,10 +1,6 @@
-import { IsUUID, IsDateString, IsEnum, IsOptional } from 'class-validator';
-import { AppointmentStatus } from '../appointment.entity';
+import { IsUUID, IsDateString, IsString } from 'class-validator';
 
 export class CreateAppointmentDto {
-  @IsUUID()
-  clinicId: string;
-
   @IsUUID()
   patientId: string;
 
@@ -12,14 +8,8 @@ export class CreateAppointmentDto {
   doctorId: string;
 
   @IsDateString()
-  startAt: string;
+  date: string;
 
-  @IsDateString()
-  endAt: string;
-
-  @IsEnum(AppointmentStatus)
-  status: AppointmentStatus;
-
-  @IsOptional()
-  reason?: string;
+  @IsString()
+  reason: string;
 }

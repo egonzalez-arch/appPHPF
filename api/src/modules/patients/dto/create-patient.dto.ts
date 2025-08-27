@@ -1,22 +1,28 @@
-import { IsUUID, IsDateString, IsEnum, IsOptional } from 'class-validator';
-import { Sex } from '../patient.entity';
+import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
+
+export enum PatientSex {
+  M = 'M',
+  F = 'F',
+  O = 'O'
+}
 
 export class CreatePatientDto {
-  @IsUUID()
-  userId: string;
+  @IsString()
+  firstName: string;
+
+  @IsString()
+  lastName: string;
 
   @IsDateString()
   birthDate: string;
 
-  @IsEnum(Sex)
-  sex: Sex;
+  @IsEnum(PatientSex)
+  sex: PatientSex;
+
+  @IsEmail()
+  email: string;
 
   @IsOptional()
-  bloodType?: string;
-
-  @IsOptional()
-  allergies?: string[];
-
-  @IsOptional()
-  emergencyContact?: Record<string, any>;
+  @IsString()
+  phone?: string;
 }

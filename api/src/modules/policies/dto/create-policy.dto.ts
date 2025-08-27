@@ -1,28 +1,15 @@
-import { IsUUID, IsNotEmpty, IsDateString, IsEnum } from 'class-validator';
-import { PolicyStatus } from '../policy.entity';
+import { IsString, IsDateString, IsUUID } from 'class-validator';
 
 export class CreatePolicyDto {
   @IsUUID()
   insurerId: string;
 
-  @IsUUID()
-  patientId: string;
-
-  @IsNotEmpty()
+  @IsString()
   policyNumber: string;
-
-  @IsNotEmpty()
-  planName: string;
-
-  @IsNotEmpty()
-  coverage: string;
 
   @IsDateString()
   startDate: string;
 
   @IsDateString()
   endDate: string;
-
-  @IsEnum(PolicyStatus)
-  status: PolicyStatus;
 }

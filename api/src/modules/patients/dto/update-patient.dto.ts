@@ -1,20 +1,28 @@
-import { IsOptional, IsDateString, IsEnum } from 'class-validator';
-import { Sex } from '../patient.entity';
+import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
+import { PatientSex } from './create-patient.dto';
 
 export class UpdatePatientDto {
   @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @IsOptional()
+  @IsDateString()
   birthDate?: string;
 
   @IsOptional()
-  @IsEnum(Sex)
-  sex?: Sex;
+  @IsEnum(PatientSex)
+  sex?: PatientSex;
 
   @IsOptional()
-  bloodType?: string;
+  @IsEmail()
+  email?: string;
 
   @IsOptional()
-  allergies?: string[];
-
-  @IsOptional()
-  emergencyContact?: Record<string, any>;
+  @IsString()
+  phone?: string;
 }

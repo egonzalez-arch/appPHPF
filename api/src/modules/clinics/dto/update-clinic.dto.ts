@@ -1,14 +1,17 @@
 import { IsString, IsOptional } from 'class-validator';
 
-export class CreateClinicDto {
+export class UpdateClinicDto {
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsString()
-  address: string;
+  address?: string;
 
+  @IsOptional()
   @IsString()
-  city: string;
+  city?: string;
 
   @IsOptional()
   @IsString()

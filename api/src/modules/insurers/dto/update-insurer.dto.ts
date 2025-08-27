@@ -1,21 +1,13 @@
 import { IsString, IsEmail, IsOptional } from 'class-validator';
 
-export class UpdateDoctorDto {
+export class UpdateInsurerDto {
   @IsOptional()
   @IsString()
-  firstName?: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  lastName?: string;
-
-  @IsOptional()
-  @IsString()
-  specialty?: string;
-
-  @IsOptional()
-  @IsString()
-  license?: string;
+  address?: string;
 
   @IsOptional()
   @IsEmail()
@@ -23,5 +15,5 @@ export class UpdateDoctorDto {
 
   @IsOptional()
   @IsString()
-  bio?: string;
+  phone?: string;
 }

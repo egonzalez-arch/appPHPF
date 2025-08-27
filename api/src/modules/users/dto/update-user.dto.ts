@@ -1,5 +1,5 @@
-import { IsOptional, IsEnum, MinLength, IsEmail } from 'class-validator';
-import { UserRole } from '../user.entity';
+import { IsEmail, IsEnum, IsString, IsOptional } from 'class-validator';
+import { UserRole, UserStatus } from '../user.entity';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -7,19 +7,18 @@ export class UpdateUserDto {
   email?: string;
 
   @IsOptional()
-  @MinLength(6)
-  password?: string;
-
-  @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
 
   @IsOptional()
+  @IsString()
   firstName?: string;
 
   @IsOptional()
+  @IsString()
   lastName?: string;
 
   @IsOptional()
-  phone?: string;
+  @IsEnum(UserStatus)
+  status?: UserStatus;
 }

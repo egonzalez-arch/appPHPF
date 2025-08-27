@@ -1,22 +1,16 @@
 import { IsString, IsEmail, IsOptional } from 'class-validator';
 
-export class CreateDoctorDto {
+export class CreateInsurerDto {
   @IsString()
-  firstName: string;
+  name: string;
 
   @IsString()
-  lastName: string;
-
-  @IsString()
-  specialty: string;
-
-  @IsString()
-  license: string;
+  address: string;
 
   @IsEmail()
   email: string;
 
   @IsOptional()
   @IsString()
-  bio?: string;
+  phone?: string;
 }
