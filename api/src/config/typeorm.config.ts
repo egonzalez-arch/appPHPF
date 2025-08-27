@@ -1,33 +1,34 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { User } from '../modules/users/user.entity';
+import { join } from "path";
 import { z } from 'zod';
 
 const envSchema = z.object({
-  DB_HOST: z.string(),
-  DB_PORT: z.coerce.number(),
-  DB_USERNAME: z.string(),
-  DB_PASSWORD: z.string(),
-  DB_NAME: z.string(),
-  DB_TYPE: z.enum(['postgres', 'mysql']),
-  NODE_ENV: z.string().default('development'),
+  DATABASE_HOST: z.string(),
+  DATABASE_PORT: z.coerce.number(),
+  DATABASE_USER: z.string(),
+  DATABASE_PASS: z.string(),
+  DATABASE_NAME: z.string(),
 });
 
-export function typeOrmConfig(config: ConfigService): TypeOrmModuleOptions {
-  const env = envSchema.parse(process.env);
-  return {
-    type: env.DB_TYPE as any,
-    host: env.DB_HOST,
-    port: env.DB_PORT,
-    username: env.DB_USERNAME,
-    password: env.DB_PASSWORD,
-    database: env.DB_NAME,
-    synchronize: env.NODE_ENV === 'development',
-    migrationsRun: env.NODE_ENV !== 'development',
-    namingStrategy: new SnakeNamingStrategy(),
-    autoLoadEntities: true,
-    logging: env.NODE_ENV === 'development',
+  export const typeOrmConfig = (configService: ConfigService) : TypeOrmModuleOptions => ({
+    type: 'postgres',
+    host: configService.get('DATABASE_HOST'),
+    port: configService.get('DATABASE_PORT'),
+    username: configService.get('DATABASE_USER'),
+    password: configService.get('DATABASE_PASS'),
+    database: configService.get('DATABASE_NAME'),
+    
+    ssl: true,
+    logging: true,
     entities: [__dirname + '/../modules/**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-  };
-}
+    synchronize: true
+
+})
+
+
+  
+

@@ -1,10 +1,6 @@
 import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
 
-export enum PatientSex {
-  M = 'M',
-  F = 'F',
-  O = 'O'
-}
+import { PatientSex } from './patient-sex.enum';
 
 export class CreatePatientDto {
   @IsString()

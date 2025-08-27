@@ -1,6 +1,9 @@
 import { IsUUID, IsDateString, IsString } from 'class-validator';
 
-export class CreateAppointmentDto {
+export class CreatePrescriptionDto {
+  @IsUUID()
+  encounterId: string;   // ← AGREGAR ESTA PROPIEDAD
+  
   @IsUUID()
   patientId: string;
 
@@ -8,14 +11,8 @@ export class CreateAppointmentDto {
   doctorId: string;
 
   @IsDateString()
-  date: string;
-
-  @IsDateString()
-  startAt: Date;
-
-  @IsDateString()
-  endAt: Date; //
+  prescriptionDate: string;
 
   @IsString()
-  reason: string;
+  notes: string;
 }

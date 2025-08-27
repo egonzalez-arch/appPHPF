@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../users/user.entity';
 
-export enum Sex {
+export enum PatientSex {
   M = 'M',
   F = 'F',
   O = 'O',
@@ -23,8 +23,8 @@ export class Patient {
   @Column({ type: 'date' })
   birthDate: Date;
 
-  @Column({ type: 'enum', enum: Sex })
-  sex: Sex;
+  @Column({ type: 'enum', enum: PatientSex })
+  PatientSex: PatientSex;
 
   @Column({ nullable: true })
   bloodType: string;

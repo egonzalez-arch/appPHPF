@@ -1,5 +1,5 @@
 import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
-import { PatientSex } from './create-patient.dto';
+import { PatientSex } from './patient-sex.enum';
 
 export class UpdatePatientDto {
   @IsOptional()

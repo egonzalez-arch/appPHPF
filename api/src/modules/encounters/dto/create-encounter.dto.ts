@@ -1,19 +1,22 @@
-import { IsUUID, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsUUID, IsDateString, IsString, IsOptional } from 'class-validator';
 
 export class CreateEncounterDto {
-  @IsOptional()
-  @IsUUID()
-  appointmentId?: string;
-
   @IsUUID()
   patientId: string;
 
   @IsUUID()
   doctorId: string;
 
-  @IsUUID()
-  clinicId: string;
-
   @IsOptional()
-  notes?: string;
+  @IsUUID()
+  appointmentId?: string;
+
+  @IsDateString()
+  encounterDate: string;
+
+  @IsString()
+  type: string;
+
+  @IsString()
+  notes: string;
 }
