@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { Repository } from 'typeorm';
@@ -13,32 +13,60 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    const exists = await this.repo.findOne({ where: { email: dto.email } });
-    if (exists) throw new BadRequestException('Email taken');
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const user = this.repo.create({ ...dto, passwordHash });
-    return this.repo.save(user);
-  }
+async register(dto: RegisterDto) {
+  const exists = await this.repo.findOne({ where: { email: dto.email } });
+  if (exists) throw new BadRequestException('Email taken');
+  const passwordHash = await bcrypt.hash(dto.password, 10);
+  const { password, ...rest } = dto; // Elimina password
+  const user = this.repo.create({ ...rest, passwordHash });
+  return this.repo.save(user);
+}
 
-  async login(dto: LoginDto, res) {
-    const user = await this.repo.findOne({ where: { email: dto.email } });
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
-      throw new BadRequestException('Invalid credentials');
-    }
-    // Generate tokens, set cookies
-    const payload = { sub: user.id, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
-    res.cookie('jwt', accessToken, { httpOnly: true });
-    res.cookie('refresh', refreshToken, { httpOnly: true });
+  async login(dto: LoginDto) {
+    const user = await this.validateUser(dto);
+    if (!user) throw new UnauthorizedException('Credenciales inválidas');
+    const accessToken = this.generateToken(user);
+    const refreshToken = this.generateRefreshToken(user);
     return { accessToken, refreshToken, user };
   }
 
-  async refresh(dto: RefreshTokenDto, res) {
-    // Validate and rotate refresh token
-    // ... (similar logic)
-    return { accessToken: '...', refreshToken: '...' };
+  async refresh(dto: RefreshTokenDto) {
+    try {
+      const payload = this.jwtService.verify(dto.refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+      });
+      const user = await this.repo.findOne({ where: { id: payload.sub } });
+      if (!user) throw new UnauthorizedException('Usuario no encontrado');
+      const accessToken = this.generateToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+      return { accessToken, refreshToken, user };
+    } catch (err) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+  }
+
+  generateToken(user: User) {
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    return this.jwtService.sign(payload, {
+      secret: process.env.JWT_SECRET || 'secret',
+      expiresIn: '1h',
+    });
+  }
+
+  generateRefreshToken(user: User) {
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    return this.jwtService.sign(payload, {
+      secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+      expiresIn: '7d',
+    });
+  }
+
+  async validateUser(dto: LoginDto) {
+    const user = await this.repo.findOne({ where: { email: dto.email } });
+    if (!user) return null;
+    const match = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!match) return null;
+    return user;
   }
 
   async resetPassword(dto: ResetPasswordDto) {

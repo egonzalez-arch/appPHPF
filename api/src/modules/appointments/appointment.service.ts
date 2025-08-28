@@ -9,7 +9,8 @@ import { AppointmentStatus } from './appointment-status-enum';
 @Injectable()
 export class AppointmentService {
   constructor(
-    @InjectRepository(Appointment) private repo: Repository<Appointment>,
+    @InjectRepository(Appointment) 
+    private repo: Repository<Appointment>,
     private auditService: AuditEventService,
   ) {}
 
