@@ -15,16 +15,16 @@ export class AuthController {
 @Post('login')
 async login(@Body() dto: LoginDto, @Res() res) {
   const { accessToken, refreshToken, user } = await this.service.login(dto);
-  res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict' });
-  res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict' });
+ res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+ res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });;
   return res.status(200).json({ user, accessToken, refreshToken });
 }
 
  @Post('refresh')
 async refresh(@Body() dto: RefreshTokenDto, @Res() res) {
   const { accessToken, refreshToken, user } = await this.service.refresh(dto);
-  res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict' });
-  res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict' });
+  res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+ res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
   return res.status(200).json({ user, accessToken, refreshToken });
 }
 
