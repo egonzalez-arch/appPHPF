@@ -1,23 +1,33 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from "react"
-import { api } from "../services/api"
+import { createContext, useContext, useState } from "react";
 
-const AuthContext = createContext({ user: null, setUser: () => {} })
+// Siempre provee un objeto (evita null), pero user puede ser null
+const AuthContext = createContext<{
+  user: any;
+  login: (userData: any) => void;
+  logout: () => void;
+} | undefined>(undefined);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  useEffect(() => {
-    api.post("/auth/validate-session")
-      .then(res => setUser(res.data.user))
-      .catch(() => setUser(null))
-  }, [])
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any>(null);
+
+  const login = (userData: any) => setUser(userData);
+  const logout = () => setUser(null);
+
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
+// Hook robusto: nunca retorna null, retorna objeto vacío si el contexto no existe
 export function useAuth() {
-  return useContext(AuthContext)
+  const context = useContext(AuthContext);
+  if (!context) {
+    // Opcional: puede lanzar error en desarrollo
+    // throw new Error("useAuth must be used within an AuthProvider");
+    return { user: null, login: () => {}, logout: () => {} };
+  }
+  return context;
 }

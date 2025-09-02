@@ -3,30 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaLock, FaEnvelope, FaCheck } from "react-icons/fa";
-import { login } from "@/lib/api";
+import { login as apiLogin } from "@/lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const { login } = useAuth();
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
-  try {
-    const result = await login(email, password);
-    if (result.accessToken) {
-      localStorage.setItem("token", result.accessToken);
-      router.push("/dashboard");
-    } else {
-      setError("Credenciales incorrectas");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const result = await apiLogin(email, password);
+      if (result.accessToken) {
+        localStorage.setItem("token", result.accessToken);
+        login({ email }); // Guarda el usuario en el contexto
+        router.push("/dashboard");
+      } else {
+        setError("Credenciales incorrectas");
+      }
+    } catch (err: any) {
+      setError(err.message || "Credenciales incorrectas");
+      console.log("Login error:", err);
     }
-  } catch (err: any) {
-    setError(err.message || "Credenciales incorrectas");
-    console.log("Login error:", err);
-  }
-};
+  };
 
   return (
     <div style={{

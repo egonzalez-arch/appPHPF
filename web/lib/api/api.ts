@@ -1,27 +1,41 @@
-const API_URL = "http://localhost:3001";
+import { QueryClient } from '@tanstack/react-query';
+export const client = new QueryClient();
 
-export async function login(email: string, password: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  if (!res.ok) {
-    // Puedes lanzar el status, el mensaje, etc.
-    const errorMessage = await res.text();
-    throw new Error(errorMessage || "Credenciales incorrectas");
-  }
-
-  return await res.json(); // Espera { accessToken: ... }
+export async function fetchPatients() {
+  const res = await fetch(`${API_URL}/patients`, { credentials: "include" });
+  if (!res.ok) throw new Error("No autorizado");
+  return res.json();
 }
 
-export async function fetchUsers(token: string) {
-  const res = await fetch(`${API_URL}/users`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+export async function createPatient(data: any) {
+  const res = await fetch(`${API_URL}/patients`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("No autorizado");
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updatePatient(id: string, data: any) {
+  const res = await fetch(`${API_URL}/patients/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deletePatient(id: string) {
+  const res = await fetch(`${API_URL}/patients/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

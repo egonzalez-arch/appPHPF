@@ -1,35 +1,129 @@
+'use client';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 
-const PatientSchema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  birthDate: z.string().refine(val => !isNaN(Date.parse(val)), 'Fecha inválida'),
-  sex: z.enum(['M', 'F', 'O']),
-  email: z.string().email(),
-});
+export interface PatientFormProps {
+  initialValues?: any;
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+  error?: Error | null;
+  isLoading?: boolean;
+}
 
-export default function PatientForm({ onSubmit }) {
+export default function PatientForm({
+  initialValues,
+  onSubmit,
+  onCancel,
+  error,
+  isLoading,
+}: PatientFormProps) {
   const { register, handleSubmit, formState } = useForm({
-    resolver: zodResolver(PatientSchema),
+    defaultValues: initialValues || {},
   });
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <input {...register('firstName')} placeholder="Nombre" />
-      <input {...register('lastName')} placeholder="Apellido" />
-      <input {...register('birthDate')} type="date" placeholder="Fecha Nacimiento" />
-      <select {...register('sex')}>
-        <option value="">Sexo</option>
-        <option value="M">Masculino</option>
-        <option value="F">Femenino</option>
-        <option value="O">Otro</option>
-      </select>
-      <input {...register('email')} placeholder="Email" type="email" />
-      <button type="submit">Guardar</button>
-      {formState.errors && (
-        <div className="text-red-500">{JSON.stringify(formState.errors)}</div>
+      {/* Fecha de nacimiento */}
+      <div>
+        <label className="block text-sm mb-1">Fecha de nacimiento</label>
+        <input
+          {...register('birthDate', { required: 'Fecha de nacimiento requerida' })}
+          className="border rounded px-2 py-1 w-full"
+          type="date"
+        />
+        {formState.errors?.birthDate && (
+          <div className="text-red-500 text-xs">{formState.errors.birthDate.message}</div>
+        )}
+      </div>
+
+      {/* Sexo */}
+      <div>
+        <label className="block text-sm mb-1">Sexo</label>
+        <select
+          {...register('PatientSex', { required: 'Sexo requerido' })}
+          className="border rounded px-2 py-1 w-full"
+        >
+          <option value="">Selecciona sexo</option>
+          <option value="M">Masculino</option>
+          <option value="F">Femenino</option>
+          <option value="O">Otro</option>
+        </select>
+        {formState.errors?.PatientSex && (
+          <div className="text-red-500 text-xs">{formState.errors.PatientSex.message}</div>
+        )}
+      </div>
+
+      {/* Tipo de sangre */}
+      <div>
+        <label className="block text-sm mb-1">Tipo de sangre</label>
+        <select
+          {...register('bloodType')}
+          className="border rounded px-2 py-1 w-full"
+        >
+          <option value="">Selecciona tipo</option>
+          <option value="A+">A+</option>
+          <option value="A-">A-</option>
+          <option value="B+">B+</option>
+          <option value="B-">B-</option>
+          <option value="AB+">AB+</option>
+          <option value="AB-">AB-</option>
+          <option value="O+">O+</option>
+          <option value="O-">O-</option>
+        </select>
+        {formState.errors?.bloodType && (
+          <div className="text-red-500 text-xs">{formState.errors.bloodType.message}</div>
+        )}
+      </div>
+
+      {/* Alergias */}
+      <div>
+        <label className="block text-sm mb-1">Alergias</label>
+        <input
+          {...register('allergies')}
+          className="border rounded px-2 py-1 w-full"
+          autoComplete="off"
+        />
+        {formState.errors?.allergies && (
+          <div className="text-red-500 text-xs">{formState.errors.allergies.message}</div>
+        )}
+      </div>
+
+      {/* Contacto de emergencia */}
+      <div>
+        <label className="block text-sm mb-1">Contacto de emergencia</label>
+        <input
+          {...register('emergencyContact')}
+          className="border rounded px-2 py-1 w-full"
+          autoComplete="off"
+        />
+        {formState.errors?.emergencyContact && (
+          <div className="text-red-500 text-xs">{formState.errors.emergencyContact.message}</div>
+        )}
+      </div>
+
+      {/* Mensaje de error de la mutación */}
+      {error && (
+        <div className="text-red-500 my-2 text-sm">
+          {error.message}
+        </div>
       )}
+
+      <div className="flex gap-2 mt-4">
+        <button
+          type="submit"
+          className={`bg-teal-600 text-white px-4 py-2 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Guardando...' : 'Guardar'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 px-4 py-2 rounded"
+          disabled={isLoading}
+        >
+          Cancelar
+        </button>
+      </div>
     </form>
   );
 }
