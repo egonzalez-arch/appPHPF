@@ -5,40 +5,29 @@ import { useRouter } from "next/navigation";
 import { FaLock, FaEnvelope, FaCheck } from "react-icons/fa";
 import { login as apiLogin } from "@/lib/api";
 import { useAuth } from "../../context/AuthContext";
-import { Toast } from "@/components/ui/toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-
   const router = useRouter();
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
-
     try {
       const result = await apiLogin(email, password);
       if (result.accessToken) {
         localStorage.setItem("token", result.accessToken);
         login({ email }); // Guarda el usuario en el contexto
-        setShowToast(true);
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1200); // Espera el toast antes de redirigir
+        router.push("/dashboard");
       } else {
         setError("Credenciales incorrectas");
       }
     } catch (err: any) {
       setError(err.message || "Credenciales incorrectas");
       console.log("Login error:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -114,7 +103,6 @@ export default function LoginPage() {
                     marginTop: "3px"
                   }}
                   placeholder="Correo electrónico"
-                  disabled={loading}
                 />
               </div>
               <label style={{ fontWeight: 500, color: "#444" }}>Contraseña:</label>
@@ -133,13 +121,12 @@ export default function LoginPage() {
                   marginBottom: "12px"
                 }}
                 placeholder="Contraseña"
-                disabled={loading}
               />
               <button
                 type="submit"
                 style={{
                   width: "100%",
-                  background: loading ? "#76d9d9" : "#1AA6A6",
+                  background: "#1AA6A6",
                   color: "#fff",
                   fontWeight: "bold",
                   fontSize: "18px",
@@ -148,12 +135,11 @@ export default function LoginPage() {
                   borderRadius: "6px",
                   marginTop: "8px",
                   marginBottom: "4px",
-                  cursor: loading ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   transition: "background 0.2s"
                 }}
-                disabled={loading}
               >
-                {loading ? "Ingresando..." : "Comenzar"}
+                Comenzar
               </button>
               {error && <p style={{ color: "red", fontWeight: 500, marginTop: "8px" }}>{error}</p>}
             </form>
@@ -165,7 +151,6 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      <Toast open={showToast} message="¡Bienvenido!" onClose={() => setShowToast(false)} />
     </div>
   );
 }

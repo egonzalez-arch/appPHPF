@@ -1,21 +1,29 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
+
+// Iconos para el sidebar
+const icons = {
+  pacientes: <span className="text-2xl">👥</span>,
+  doctor: <span className="text-2xl">🩺</span>,
+  agenda: <span className="text-2xl">📅</span>,
+  reportes: <span className="text-2xl">📊</span>,
+};
 
 const menu = [
   {
     label: "Pacientes",
-    icon: "👥",
+    icon: icons.pacientes,
     children: [
-      { label: "Dashboard", href: "/patients" },
-      { label: "Citas", href: "/patients/citas" },
-      { label: "Registro", href: "/patients/registro" },
+      { label: "Dashboard", href: "/dashboard/patients" },
+      { label: "Citas", href: "/dashboard/patients/citas" },
+      { label: "Registro", href: "/dashboard/patients/registro" },
     ],
   },
   {
     label: "Doctor",
-    icon: "🩺",
+    icon: icons.doctor,
     children: [
       { label: "Dashboard", href: "/doctor/dashboard" },
       { label: "Consultas", href: "/doctor/consultas" },
@@ -25,7 +33,7 @@ const menu = [
   },
   {
     label: "Agenda",
-    icon: "📅",
+    icon: icons.agenda,
     children: [
       { label: "Semana", href: "/agenda/semana" },
       { label: "Día", href: "/agenda/dia" },
@@ -33,85 +41,121 @@ const menu = [
   },
   {
     label: "Reportes",
-    icon: "📊",
+    icon: icons.reportes,
     href: "/reportes",
   },
 ];
 
 export default function Sidebar() {
-  const [open, setOpen] = useState<string | null>(null);
-  const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const [openMenus, setOpenMenus] = useState({});
+  const [minimized, setMinimized] = useState(false);
 
-  if (!user) return null;
+  const toggleMenu = label =>
+    setOpenMenus(open => ({
+      ...open,
+      [label]: !open[label],
+    }));
 
-  const handleLogout = () => {
-    logout();
-    localStorage.removeItem("token");
-    router.replace("/login");
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login"); // Redirige al login después de cerrar sesión
   };
 
   return (
-    <aside className="w-64 min-h-screen bg-teal-600 text-white flex flex-col shadow-xl">
-      <div className="py-6 px-6 border-b border-teal-700 flex items-center gap-2">
-        <span className="text-2xl mr-2">🩻</span>
-        <span className="font-bold text-xl tracking-wide">MediDash</span>
-      </div>
-      <nav className="flex-1 py-6 px-4">
-        <ul className="space-y-2">
-          {menu.map((item) => (
-            <li key={item.label}>
-              {item.children ? (
-                <>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg hover:bg-teal-700 transition group ${
-                      open === item.label ? "bg-teal-700" : ""
-                    }`}
-                    onClick={() => setOpen(open === item.label ? null : item.label)}
-                  >
-                    <span className="mr-3 text-lg">{item.icon}</span>
-                    <span className="flex-1 text-left font-semibold group-hover:text-teal-200">{item.label}</span>
-                    <span className="ml-2 text-xs">{open === item.label ? "▲" : "▼"}</span>
-                  </button>
-                  {open === item.label && (
-                    <ul className="ml-7 mt-1 space-y-1 border-l border-teal-200 pl-3">
-                      {item.children.map((child) => (
-                        <li key={child.label}>
-                          <a
-                            href={child.href}
-                            className="block px-3 py-1 rounded-lg font-medium text-teal-100 hover:text-white hover:bg-teal-500 transition duration-150"
-                          >
-                            {child.label}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <a
-                  href={item.href}
-                  className="flex items-center px-4 py-2 rounded-lg font-semibold hover:bg-teal-700 transition"
-                >
-                  <span className="mr-3 text-lg">{item.icon}</span>
-                  <span>{item.label}</span>
-                </a>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="py-4 px-6 border-t border-teal-700">
+    <aside
+      className={`flex flex-col min-h-screen bg-teal-600 text-white transition-all duration-300 ${
+        minimized ? "w-20" : "w-64"
+      }`}
+    >
+      {/* Top: Toggle/minimize button + Username */}
+      <div className="flex items-center justify-between px-3 py-4 border-b border-teal-800">
+        <span className={`text-xl font-bold transition-all duration-200 ${minimized ? "opacity-0 w-0" : "opacity-100 w-auto"}`}>
+          {user?.name || "Usuario"}
+        </span>
         <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 bg-teal-700 hover:bg-red-500 text-white py-2 px-4 rounded-lg font-semibold transition"
+          className="p-2 rounded hover:bg-teal-700 transition-all"
+          onClick={() => setMinimized(m => !m)}
+          aria-label={minimized ? "Extender sidebar" : "Minimizar sidebar"}
         >
-          <span className="text-lg">🚪</span>
-          <span>Salir / Logout</span>
+          <span
+            className={`inline-block transition-transform ${
+              minimized ? "rotate-180" : "rotate-0"
+            }`}
+          >
+            ▶
+          </span>
         </button>
       </div>
-      <div className="py-3 px-6 text-xs text-teal-200">
-        <span>© 2025 MediDash</span>
+
+      {/* Menú principal */}
+      <nav className="flex-1 px-2 py-4">
+        {menu.map(section => (
+          <div key={section.label} className="mb-2">
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded hover:bg-teal-700 font-semibold focus:outline-none transition-all ${
+                minimized ? "justify-center" : ""
+              }`}
+              onClick={() => section.children ? toggleMenu(section.label) : router.push(section.href)}
+              aria-label={section.label}
+            >
+              {section.icon}
+              {!minimized && <span className="ml-2">{section.label}</span>}
+              {section.children && !minimized && (
+                <span className="ml-auto">{openMenus[section.label] ? "▲" : "▼"}</span>
+              )}
+            </button>
+            {/* Submenú */}
+            {section.children && openMenus[section.label] && !minimized && (
+              <div className="pl-8 py-1">
+                {section.children.map(item => (
+                  <button
+                    key={item.label}
+                    onClick={() => router.push(item.href)}
+                    className={`block text-left w-full px-2 py-1 rounded hover:bg-teal-500 ${
+                      pathname === item.href ? "bg-teal-700 font-bold" : ""
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Sección sin hijos */}
+            {!section.children && !minimized && (
+              <button
+                onClick={() => router.push(section.href)}
+                className={`block text-left w-full px-3 py-2 rounded hover:bg-teal-700 ${
+                  pathname === section.href ? "bg-teal-700 font-bold" : ""
+                }`}
+              >
+                {section.label}
+              </button>
+            )}
+          </div>
+        ))}
+      </nav>
+
+      {/* Logout y avatar */}
+      <div className={`px-6 py-4 border-t border-teal-800 flex flex-col items-start gap-2 transition-all duration-200 ${minimized ? "items-center px-2" : ""}`}>
+        <button
+          onClick={handleLogout}
+          className={`w-full bg-teal-700 flex items-center gap-2 px-3 py-2 rounded hover:bg-teal-800 transition-all ${
+            minimized ? "justify-center px-2" : ""
+          }`}
+        >
+          <span className="text-lg">🧾</span>
+          {!minimized && <span>Salir / Logout</span>}
+        </button>
+        {user && (
+          <div className={`w-10 h-10 rounded-full bg-teal-900 flex items-center justify-center font-bold text-xl mt-2 transition-all duration-200 ${
+            minimized ? "w-8 h-8 text-base" : ""
+          }`}>
+            {user.name?.[0]?.toUpperCase() || "?"}
+          </div>
+        )}
       </div>
     </aside>
   );
