@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
 
-// Iconos para el sidebar
 const icons = {
   pacientes: <span className="text-2xl">👥</span>,
   doctor: <span className="text-2xl">🩺</span>,
@@ -61,7 +60,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login"); // Redirige al login después de cerrar sesión
+    router.push("/login");
   };
 
   return (
@@ -70,7 +69,6 @@ export default function Sidebar() {
         minimized ? "w-20" : "w-64"
       }`}
     >
-      {/* Top: Toggle/minimize button + Username */}
       <div className="flex items-center justify-between px-3 py-4 border-b border-teal-800">
         <span className={`text-xl font-bold transition-all duration-200 ${minimized ? "opacity-0 w-0" : "opacity-100 w-auto"}`}>
           {user?.name || "Usuario"}
@@ -89,8 +87,6 @@ export default function Sidebar() {
           </span>
         </button>
       </div>
-
-      {/* Menú principal */}
       <nav className="flex-1 px-2 py-4">
         {menu.map(section => (
           <div key={section.label} className="mb-2">
@@ -107,7 +103,6 @@ export default function Sidebar() {
                 <span className="ml-auto">{openMenus[section.label] ? "▲" : "▼"}</span>
               )}
             </button>
-            {/* Submenú */}
             {section.children && openMenus[section.label] && !minimized && (
               <div className="pl-8 py-1">
                 {section.children.map(item => (
@@ -123,7 +118,6 @@ export default function Sidebar() {
                 ))}
               </div>
             )}
-            {/* Sección sin hijos */}
             {!section.children && !minimized && (
               <button
                 onClick={() => router.push(section.href)}
@@ -137,8 +131,6 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Logout y avatar */}
       <div className={`px-6 py-4 border-t border-teal-800 flex flex-col items-start gap-2 transition-all duration-200 ${minimized ? "items-center px-2" : ""}`}>
         <button
           onClick={handleLogout}

@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios from "../lib/axios"; 
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -18,3 +18,8 @@ api.interceptors.response.use(
     return Promise.reject(err)
   }
 )
+
+export async function fetchPatients() {
+  const res = await axios.get("/patients"); // URL relativa, baseURL ya definida
+  return res.data; // Ajusta según el shape de tu API
+}

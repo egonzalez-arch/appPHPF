@@ -1,7 +1,6 @@
 "use client";
 import { createContext, useContext, useState } from "react";
 
-// Siempre provee un objeto (evita null), pero user puede ser null
 const AuthContext = createContext<{
   user: any;
   login: (userData: any) => void;
@@ -21,12 +20,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Hook robusto: nunca retorna null, retorna objeto vacío si el contexto no existe
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    // Opcional: puede lanzar error en desarrollo
-    // throw new Error("useAuth must be used within an AuthProvider");
     return { user: null, login: () => {}, logout: () => {} };
   }
   return context;

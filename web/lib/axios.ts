@@ -1,4 +1,11 @@
-// ...import axios and instance
+import axios from "axios";
+
+const instance = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL, // variable de entorno para producción
+  withCredentials: true, // importante si tu backend usa cookies/sesiones
+});
+
+// Interceptor para redirección automática en caso de error de autenticación
 instance.interceptors.response.use(
   res => res,
   err => {
@@ -7,4 +14,5 @@ instance.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
 export default instance;
