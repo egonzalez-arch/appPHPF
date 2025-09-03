@@ -39,3 +39,59 @@ export async function deletePatient(id: string) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function fetchUsers(token: string) {
+  const res = await fetch("/api/users", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  console.log("Status:", res.status);
+const text = await res.text();
+console.log("Response:", text);
+
+if (!res.ok) throw new Error("Error al obtener usuarios");
+return JSON.parse(text);
+
+
+  if (!res.ok) throw new Error("Error al obtener usuarios");
+  return JSON.parse(text);
+}
+
+export async function addUser(token: string, data: { name: string; email: string }) {
+  const res = await fetch("/api/users", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Error al agregar usuario");
+  return res.json();
+}
+
+export async function updateUser(token: string, id: number, data: { name: string; email: string }) {
+  const res = await fetch(`/api/users/${id}`, {
+    method: "PUT", // o "PATCH" según tu API
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Error al actualizar usuario");
+  return res.json();
+}
+
+export async function disableUser(token: string, id: number) {
+  const res = await fetch(`/api/users/${id}/disable`, {
+    method: "POST", // o "PATCH", según tu API
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error("Error al deshabilitar usuario");
+  return res.json();
+}

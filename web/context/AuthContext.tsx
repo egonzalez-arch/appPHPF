@@ -1,33 +1,40 @@
 "use client";
 import { createContext, useContext, useState } from "react";
 
-// Siempre provee un objeto (evita null), pero user puede ser null
-const AuthContext = createContext<{
+interface AuthContextType {
   user: any;
-  login: (userData: any) => void;
+  setUser: (user: any) => void;
+  login: (user: any) => void; // <-- Añadido
   logout: () => void;
-} | undefined>(undefined);
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
 
-  const login = (userData: any) => setUser(userData);
-  const logout = () => setUser(null);
+  // Método login: guarda el usuario en contexto
+  const login = (userData: any) => {
+    setUser(userData);
+  };
+
+  // Método logout listo para producción
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("token");
+    // Si usas cookies, bórralas aquí
+    window.location.href = "/login";
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Hook robusto: nunca retorna null, retorna objeto vacío si el contexto no existe
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    // Opcional: puede lanzar error en desarrollo
-    // throw new Error("useAuth must be used within an AuthProvider");
-    return { user: null, login: () => {}, logout: () => {} };
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  return ctx;
 }

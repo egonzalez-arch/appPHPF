@@ -1,6 +1,6 @@
 'use client';
 import { useQuery, useMutation, QueryClientProvider } from '@tanstack/react-query';
-import { client } from '@/lib/api';
+import { client } from '@/lib/api/api';
 import DoctorForm from '@/components/forms/DoctorForm';
 
 function fetchDoctors() {
