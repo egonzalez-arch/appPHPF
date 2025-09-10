@@ -8,8 +8,8 @@ export class Company {
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  taxId: string;
+  //@Column({ unique: true })
+  //taxId: string;
 
   @Column()
   address: string;

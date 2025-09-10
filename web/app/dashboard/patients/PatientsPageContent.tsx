@@ -1,12 +1,12 @@
 'use client';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchPatients, createPatient, updatePatient, deletePatient } from '@/lib/api/api';
+import { fetchPatients, createPatient, updatePatient, deletePatient, Patient } from '@/lib/api/api';
 import PatientForm from '@/components/forms/PatientForm';
 import { useState } from 'react';
-import Sidebar from '@/components/Sidebar';
+//import Sidebar from '@/components/Sidebar';
 
 export default function PatientsPageContent() {
-  const [editPatient, setEditPatient] = useState<any | null>(null);
+  const [editPatient, setEditPatient] = useState<Patient | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const { data: patients, refetch, isLoading, isError, error } = useQuery({
@@ -23,7 +23,7 @@ export default function PatientsPageContent() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: any) => updatePatient(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<Patient> }) => updatePatient(id, data),
     onSuccess: () => {
       refetch();
       setEditPatient(null);
@@ -36,7 +36,7 @@ export default function PatientsPageContent() {
     onSuccess: refetch
   });
 
-  function handleEdit(patient: any) {
+  function handleEdit(patient: Patient) {
     setEditPatient(patient);
     setShowForm(true);
   }
@@ -49,7 +49,6 @@ export default function PatientsPageContent() {
 
   return (
     <div className="flex min-h-screen">
-      
       <main className="flex-1 px-8 py-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <h1 className="text-2xl font-bold">Pacientes</h1>
@@ -114,7 +113,7 @@ export default function PatientsPageContent() {
                   </td>
                 </tr>
               )}
-              {patients?.map((p: any) => (
+              {patients?.map((p: Patient) => (
                 <tr key={p.id} className="hover:bg-teal-50">
                   <td className="px-4 py-2">{p.firstName}</td>
                   <td className="px-4 py-2">{p.lastName}</td>

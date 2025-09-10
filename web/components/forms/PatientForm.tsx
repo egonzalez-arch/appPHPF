@@ -1,9 +1,19 @@
 'use client';
 import { useForm } from 'react-hook-form';
+//import { Patient } from '@/lib/api/api';
+
+export interface PatientFormValues {
+  birthDate: string;
+  PatientSex: string;
+  bloodType?: string;
+  allergies?: string;
+  emergencyContact?: string;
+  // Puedes agregar aquí más campos según tu modelo Patient
+}
 
 export interface PatientFormProps {
-  initialValues?: any;
-  onSubmit: (data: any) => void;
+  initialValues?: Partial<PatientFormValues>;
+  onSubmit: (data: PatientFormValues) => void;
   onCancel: () => void;
   error?: Error | null;
   isLoading?: boolean;
@@ -16,7 +26,7 @@ export default function PatientForm({
   error,
   isLoading,
 }: PatientFormProps) {
-  const { register, handleSubmit, formState } = useForm({
+  const { register, handleSubmit, formState } = useForm<PatientFormValues>({
     defaultValues: initialValues || {},
   });
 

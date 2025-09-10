@@ -3,40 +3,43 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaLock, FaEnvelope, FaCheck } from "react-icons/fa";
-import { login as apiLogin } from "@/lib/api";
-import { useAuth } from "../../context/AuthContext";
+import { login as apiLogin, User } from "@/lib/api/api";
+import { useAuth } from "@/context/AuthContext";
 import { Toast } from "@/components/ui/toast";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [showToast, setShowToast] = useState<boolean>(false);
 
   const router = useRouter();
   const { login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const result = await apiLogin(email, password);
-      if (result.accessToken) {
+      const result = await apiLogin(email, password); // { accessToken, user }
+      if (result.accessToken && result.user) {
         localStorage.setItem("token", result.accessToken);
-        login({ email }); // Guarda el usuario en el contexto
+        login(result.user); // Guarda el usuario completo en contexto
         setShowToast(true);
         setTimeout(() => {
           router.push("/dashboard");
-        }, 1200); // Espera el toast antes de redirigir
+        }, 1200);
       } else {
         setError("Credenciales incorrectas");
       }
-    } catch (err: any) {
-      setError(err.message || "Credenciales incorrectas");
-      console.log("Login error:", err);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || "Credenciales incorrectas");
+      } else {
+        setError("Credenciales incorrectas");
+      }
     } finally {
       setLoading(false);
     }

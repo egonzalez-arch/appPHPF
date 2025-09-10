@@ -1,9 +1,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export const Card = React.forwardRef<HTMLDivElement, CardProps>(
+/**
+ * Card component for displaying content in a styled container.
+ * Usa forwardRef para compatibilidad con librerías externas.
+ */
+export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}

@@ -2,21 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fetchUsers } from "@/lib/api/api";
-
-interface User {
-  id: number;
-  name?: string;
-  email?: string;
-  disabled?: boolean;
-  PasswordHash?: string;
-  [key: string]: any;
-}
+import { fetchUsers, User } from "@/lib/api/api"; // Importa el tipo User
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
 
   const router = useRouter();
 
@@ -47,7 +38,7 @@ export default function UsersPage() {
 
   // Obtiene las claves que mostrar (excluyendo id y password)
   const visibleFields = users.length > 0
-    ? Object.keys(users[0]).filter(key => key !== 'id' && key !== 'passwordHash')
+    ? Object.keys(users[0]).filter(key => key !== 'id' && key.toLowerCase() !== 'passwordhash')
     : [];
 
   return (
