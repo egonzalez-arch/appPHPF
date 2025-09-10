@@ -66,10 +66,10 @@ export default function UsersPage() {
                 {visibleFields.map((field) => (
                   <td key={field} className="py-2 px-4 border-b">
                     {typeof u[field] === "boolean"
-                      ? u[field]
+                      ? (u[field]
                         ? <span className="text-green-600 font-semibold">Activo</span>
-                        : <span className="text-red-600 font-semibold">Deshabilitado</span>
-                      : u[field] || "-"}
+                        : <span className="text-red-600 font-semibold">Deshabilitado</span>)
+                      : (u[field] as string) || "-"}
                   </td>
                 ))}
               </tr>

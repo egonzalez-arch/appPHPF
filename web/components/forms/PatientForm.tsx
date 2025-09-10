@@ -9,6 +9,7 @@ export interface PatientFormValues {
   allergies?: string;
   emergencyContact?: string;
   // Puedes agregar aquí más campos según tu modelo Patient
+  [key: string]: unknown;
 }
 
 export interface PatientFormProps {
