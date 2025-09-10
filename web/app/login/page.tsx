@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaLock, FaEnvelope, FaCheck } from "react-icons/fa";
-import { login as apiLogin, User } from "@/lib/api/api";
+import { login as apiLogin } from "@/lib/api/api";
 import { useAuth } from "@/context/AuthContext";
 import { Toast } from "@/components/ui/toast";
 
@@ -23,10 +23,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await apiLogin(email, password); // { accessToken, user }
-      if (result.accessToken && result.user) {
-        localStorage.setItem("token", result.accessToken);
-        login(result.user); // Guarda el usuario completo en contexto
+      // El backend pone el JWT en la cookie y regresa el usuario
+      const user = await apiLogin(email, password);
+      if (user) {
+        login(email, password); // Actualiza el contexto
         setShowToast(true);
         setTimeout(() => {
           router.push("/dashboard");

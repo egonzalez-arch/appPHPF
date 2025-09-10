@@ -3,6 +3,7 @@ export const client = new QueryClient();
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+
 // Interfaces recomendadas
 export interface Patient {
   id: string;
@@ -163,30 +164,42 @@ export async function deleteDoctor(id: string): Promise<void> {
   return res.json();
 }
 
-// Login function for auth
-export async function login(email: string, password: string): Promise<{ accessToken: string; user: User }> {
+// Login
+export async function login(email: string, password: string): Promise<any> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password }),
+    credentials: "include", // Importante para cookies
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (!res.ok) {
+    // Aquí puedes lanzar un error personalizado si la respuesta es 401, 403, etc.
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || "Credenciales incorrectas");
+  }
+  const data = await res.json();
+  // Asegúrate de que el user venga en la respuesta
+  if (!data.user) {
+    throw new Error("Credenciales incorrectas");
+  }
+  return data.user;
 }
 
-// Validate session function for auth
-export async function validateSession(token: string): Promise<User | null> {
+// Logout
+export async function logout(): Promise<void> {
+  await fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+// Validar sesión
+export async function validateSession(): Promise<any> {
   const res = await fetch(`${API_URL}/auth/validate-session`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    credentials: "include",
   });
   if (!res.ok) return null;
   const data = await res.json();
-  if (data && data.user && Object.keys(data.user).length > 0) {
-    return data.user as User;
-  }
-  return null;
+  return data.user || null;
 }

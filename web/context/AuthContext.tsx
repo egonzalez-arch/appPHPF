@@ -1,11 +1,12 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
+import { login as apiLogin, logout as apiLogout, validateSession } from "@/lib/api/api";
 
 interface AuthContextType {
   user: any;
   setUser: (user: any) => void;
-  login: (user: any) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -13,41 +14,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
 
-  const login = (userData: any) => {
-    setUser(userData);
+  // Validar sesión al montar usando la cookie
+useEffect(() => {
+  (async () => {
+    try {
+      const user = await validateSession();
+      setUser(user);
+    } catch (err) {
+      setUser(null);
+      // Si quieres, puedes mostrar un log informativo en vez de un error
+      // console.info('Sesión no válida (usuario no logueado)');
+    }
+  })();
+}, []);
+
+  // Login
+  const login = async (email: string, password: string) => {
+    const user = await apiLogin(email, password);
+    setUser(user);
   };
 
-  const logout = () => {
+  // Logout
+  const logout = async () => {
+    await apiLogout();
     setUser(null);
-    localStorage.removeItem("token");
     window.location.href = "/login";
   };
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token && !user) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/validate-session`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then(async (res) => {
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && data && data.user && Object.keys(data.user).length > 0) {
-            setUser(data.user);
-          } else {
-            setUser(null);
-            localStorage.removeItem("token");
-          }
-        })
-        .catch(() => {
-          setUser(null);
-          localStorage.removeItem("token");
-        });
-    }
-  }, []); // Solo al montar
 
   return (
     <AuthContext.Provider value={{ user, setUser, login, logout }}>

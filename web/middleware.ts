@@ -9,13 +9,14 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/assets') ||
-    pathname.startsWith('/api')
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/login')
   ) {
     return NextResponse.next();
   }
 
   const jwtCookie = req.cookies.get('jwt');
-  if (!jwtCookie && !pathname.startsWith('/login')) {
+  if (!jwtCookie) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
   return NextResponse.next();

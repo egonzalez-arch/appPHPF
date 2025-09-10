@@ -2,16 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser'; // <--- corregido aquí
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
- // Habilita CORS para el frontend en localhost:3000
+  // Habilita CORS para el frontend en localhost:3000
   app.enableCors({
-    origin: 'http://localhost:3000', // Permite sólo el frontend en desarrollo
-    credentials: true, // Permite enviar cookies
+    origin: 'http://localhost:3000',
+    credentials: true,
   });
-  
+
+  app.use(cookieParser()); // <--- ya no da error
+
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
