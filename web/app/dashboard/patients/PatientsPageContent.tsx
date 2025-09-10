@@ -33,7 +33,7 @@ export default function PatientsPageContent() {
 
   const deleteMutation = useMutation({
     mutationFn: deletePatient,
-    onSuccess: refetch
+    onSuccess: () => refetch()
   });
 
   function handleEdit(patient: Patient) {
@@ -126,7 +126,7 @@ export default function PatientsPageContent() {
                     <button
                       className="text-teal-600 hover:underline"
                       onClick={() => handleEdit(p)}
-                      disabled={updateMutation.isLoading}
+                      disabled={updateMutation.isPending}
                       aria-label={`Editar paciente ${p.firstName} ${p.lastName}`}
                     >
                       Editar
@@ -134,7 +134,7 @@ export default function PatientsPageContent() {
                     <button
                       className="text-red-600 hover:underline"
                       onClick={() => handleDelete(p.id)}
-                      disabled={deleteMutation.isLoading}
+                      disabled={deleteMutation.isPending}
                       aria-label={`Eliminar paciente ${p.firstName} ${p.lastName}`}
                     >
                       Eliminar
