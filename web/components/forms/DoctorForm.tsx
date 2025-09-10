@@ -8,7 +8,9 @@ const DoctorSchema = z.object({
   bio: z.string().optional(),
 });
 
-export default function DoctorForm({ onSubmit }) {
+type DoctorFormData = z.infer<typeof DoctorSchema>;
+
+export default function DoctorForm({ onSubmit }: { onSubmit: (data: DoctorFormData) => void }) {
   const { register, handleSubmit, formState } = useForm({
     resolver: zodResolver(DoctorSchema),
   });
