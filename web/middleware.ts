@@ -15,9 +15,10 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const jwtCookie = req.cookies.get('jwt');
-  if (!jwtCookie) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
+  // Temporarily disable JWT check for development
+  // const jwtCookie = req.cookies.get('jwt');
+  // if (!jwtCookie) {
+  //   return NextResponse.redirect(new URL('/login', req.url));
+  // }
   return NextResponse.next();
 }
