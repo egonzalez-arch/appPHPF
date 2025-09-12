@@ -12,13 +12,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Mock user for development/testing
-  const [user, setUser] = useState<any>({
-    id: 1,
-    name: "Dr. Juan Pérez",
-    email: "test@example.com",
-    role: "DOCTOR"
-  });
+  const [user, setUser] = useState<any>(null);
 
   // Validar sesión al montar usando la cookie
 useEffect(() => {
@@ -27,8 +21,7 @@ useEffect(() => {
       const user = await validateSession();
       setUser(user);
     } catch (err) {
-      // For development, keep the mock user
-      // setUser(null);
+      setUser(null);
       // Si quieres, puedes mostrar un log informativo en vez de un error
       // console.info('Sesión no válida (usuario no logueado)');
     }
@@ -37,27 +30,13 @@ useEffect(() => {
 
   // Login
   const login = async (email: string, password: string) => {
-    try {
-      const user = await apiLogin(email, password);
-      setUser(user);
-    } catch (error) {
-      // For development, use mock login
-      setUser({
-        id: 1,
-        name: "Dr. Juan Pérez",
-        email: email,
-        role: "DOCTOR"
-      });
-    }
+    const user = await apiLogin(email, password);
+    setUser(user);
   };
 
   // Logout
   const logout = async () => {
-    try {
-      await apiLogout();
-    } catch (error) {
-      // Ignore logout errors for development
-    }
+    await apiLogout();
     setUser(null);
     window.location.href = "/login";
   };

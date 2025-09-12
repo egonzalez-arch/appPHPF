@@ -24,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [darkMode, setDarkMode] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
 
@@ -58,10 +59,80 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className={darkMode ? "dark bg-gray-50" : "bg-gray-50"}>
       <div className="flex min-h-screen">
+        {/* Mobile Sidebar Overlay */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            
+            {/* Mobile Sidebar */}
+            <aside className="relative bg-gray-900 text-white w-64 flex flex-col shadow-xl">
+              {/* Logo/Header */}
+              <div className="flex items-center justify-between px-6 py-6 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🩻</span>
+                  <span className="text-xl font-bold tracking-tight">MediDash</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close mobile menu"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-gray-300 hover:text-white hover:bg-gray-800"
+                >
+                  ✕
+                </Button>
+              </div>
+              
+              {/* Navigation */}
+              <nav className="flex-1 py-6">
+                <div className="space-y-2 px-3">
+                  {MENU_ITEMS.map((item) => (
+                    <SidebarItem
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      active={pathname.startsWith(item.href)}
+                      collapsed={false}
+                    />
+                  ))}
+                </div>
+              </nav>
+              
+              {/* User info and logout */}
+              <div className="mt-auto mb-4 px-3 border-t border-gray-700 pt-4">
+                <div className="px-3 py-2 mb-3">
+                  <p className="text-xs text-gray-400 mb-1">Conectado como:</p>
+                  <p className="text-sm font-medium truncate">{userName}</p>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 mb-2">
+                  <div className="bg-teal-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                    {userInitial}
+                  </div>
+                  <span className="text-sm font-medium">{userName}</span>
+                </div>
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  aria-label="Logout"
+                  onClick={handleLogoutClick}
+                >
+                  Salir / Logout
+                </Button>
+              </div>
+            </aside>
+          </div>
+        )}
+
         {/* Sidebar */}
         <aside
-          className={`bg-gray-900 text-white flex flex-col transition-all duration-300
-            ${collapsed ? "w-16" : "w-64"} min-h-screen shadow-xl`}
+          className={`bg-gray-900 text-white flex flex-col transition-all duration-300 ${
+            collapsed ? "w-16" : "w-64"
+          } min-h-screen shadow-xl hidden lg:flex`}
           aria-label="Sidebar"
         >
           {/* Logo/Header del sidebar */}
@@ -130,42 +201,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Top Bar */}
-          <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              {/* Left side - Logo and Action Buttons */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 mr-6">
+          <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              {/* Top row - Logo and User Actions (always visible) */}
+              <div className="flex items-center justify-between w-full lg:w-auto">
+                <div className="flex items-center gap-2">
+                  {/* Mobile menu button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Toggle mobile menu"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="lg:hidden text-gray-600 hover:text-gray-900 mr-2"
+                  >
+                    ☰
+                  </Button>
                   <span className="text-2xl">🩻</span>
                   <span className="text-xl font-bold text-teal-700">MediDash</span>
                 </div>
                 
-                <button className="flex items-center gap-2 border-2 border-teal-700 bg-white text-teal-700 font-semibold px-4 py-2 rounded-lg transition shadow hover:bg-teal-50">
-                  <FaUsers size={16} />
-                  Nuevo Paciente
-                </button>
-                <button className="flex items-center gap-2 border-2 border-gray-300 bg-white text-gray-800 font-semibold px-4 py-2 rounded-lg transition shadow hover:bg-gray-100">
-                  <FaTools size={16} />
-                  Herramientas
-                </button>
-                <button className="flex items-center gap-2 border-2 border-yellow-400 bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded-lg transition shadow hover:bg-yellow-300">
-                  <FaGift size={16} />
-                  Recomendar
-                </button>
-              </div>
-
-              {/* Right side - Search and User Actions */}
-              <div className="flex items-center gap-4">
-                {/* Patient Search */}
-                <div className="flex items-center bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 min-w-[300px]">
-                  <FaSearch className="text-gray-400 mr-3" size={16} />
-                  <input
-                    type="text"
-                    placeholder="Buscar paciente por nombre o teléfono..."
-                    className="outline-none border-none text-sm bg-transparent flex-1 text-gray-700 placeholder-gray-400"
-                  />
-                </div>
-
-                {/* User Actions */}
+                {/* User Actions - always visible on right */}
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -180,6 +235,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="bg-teal-600 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-teal-700 transition">
                     {userInitial}
                   </div>
+                </div>
+              </div>
+
+              {/* Bottom row - Action Buttons and Search (stacked on mobile) */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-4 w-full lg:w-auto">
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <button className="flex items-center gap-2 border-2 border-teal-700 bg-white text-teal-700 font-semibold px-3 sm:px-4 py-2 rounded-lg transition shadow hover:bg-teal-50 text-sm">
+                    <FaUsers size={14} />
+                    <span className="hidden sm:inline">Nuevo Paciente</span>
+                    <span className="sm:hidden">Nuevo</span>
+                  </button>
+                  <button className="flex items-center gap-2 border-2 border-gray-300 bg-white text-gray-800 font-semibold px-3 sm:px-4 py-2 rounded-lg transition shadow hover:bg-gray-100 text-sm">
+                    <FaTools size={14} />
+                    <span className="hidden sm:inline">Herramientas</span>
+                    <span className="sm:hidden">Tools</span>
+                  </button>
+                  <button className="flex items-center gap-2 border-2 border-yellow-400 bg-yellow-400 text-gray-900 font-semibold px-3 sm:px-4 py-2 rounded-lg transition shadow hover:bg-yellow-300 text-sm">
+                    <FaGift size={14} />
+                    <span className="hidden sm:inline">Recomendar</span>
+                    <span className="sm:hidden">Rec</span>
+                  </button>
+                </div>
+
+                {/* Patient Search */}
+                <div className="flex items-center bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 w-full sm:min-w-[250px] lg:min-w-[300px]">
+                  <FaSearch className="text-gray-400 mr-2" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Buscar paciente..."
+                    className="outline-none border-none text-sm bg-transparent flex-1 text-gray-700 placeholder-gray-400"
+                  />
                 </div>
               </div>
             </div>
