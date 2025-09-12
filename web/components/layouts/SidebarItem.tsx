@@ -14,14 +14,27 @@ export function SidebarItem({ href, label, icon, active, collapsed }: SidebarIte
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 px-5 py-2 rounded transition-colors hover:bg-teal-800 focus:bg-teal-900 outline-none",
-        active && "bg-teal-900 font-bold",
+        "flex items-center gap-4 px-4 py-3 mx-2 rounded-lg transition-all duration-200 hover:bg-gray-800 focus:bg-gray-700 outline-none group",
+        active && "bg-gray-800 text-white font-semibold",
         collapsed && "justify-center px-2"
       )}
       aria-current={active ? "page" : undefined}
     >
-      <span className="text-xl">{icon}</span>
-      {!collapsed && <span className="truncate">{label}</span>}
+      <span className={cn(
+        "text-gray-300 group-hover:text-white transition-colors",
+        active && "text-white",
+        collapsed ? "text-2xl" : "text-xl"
+      )}>
+        {icon}
+      </span>
+      {!collapsed && (
+        <span className={cn(
+          "truncate text-sm font-medium text-gray-300 group-hover:text-white transition-colors",
+          active && "text-white"
+        )}>
+          {label}
+        </span>
+      )}
     </Link>
   );
 }
