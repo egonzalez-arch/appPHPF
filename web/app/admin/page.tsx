@@ -17,7 +17,7 @@ export default function AdminPage() {
   const [adminUser, setAdminUser] = useState<User | null>(null);
 
   const router = useRouter();
-  const { login } = useAuth();
+  const { setUser } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -29,7 +29,7 @@ export default function AdminPage() {
       if (result.accessToken && result.user) {
         if (result.user.role === "ADMIN") {
           localStorage.setItem("token", result.accessToken);
-          login(result.user);
+          setUser(result.user);
           setAdminUser(result.user);
           setShowToast(true);
         } else {
