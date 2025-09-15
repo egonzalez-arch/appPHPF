@@ -1,18 +1,28 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { dashboardNav } from "@/config/dashboardNav";
-import { cn } from "@/lib/utils"; // Asume helper existente; si no, crea uno sencillo.
+import { FaUsers, FaUserMd, FaChartBar, FaSignOutAlt } from "react-icons/fa";
+import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 interface SidebarProps {
   onNavigate?: () => void;
+  open: boolean;
+  onClose: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
+const items = [
+  { href: "/dashboard", label: "Inicio", icon: <FaChartBar size={18} /> },
+  { href: "/dashboard/patients", label: "Pacientes", icon: <FaUsers size={18} /> },
+  { href: "/dashboard/doctors", label: "Doctores", icon: <FaUserMd size={18} /> },
+];
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [openMobile, setOpenMobile] = useState(false);
+  const { logout } = useAuth();
 
   // Cierra al cambiar ruta
   useEffect(() => {
@@ -31,55 +41,54 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         {openMobile ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
+      {/* Backdrop mobile */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/40 z-30 lg:hidden transition-opacity",
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-60 shrink-0 border-r bg-white/95 backdrop-blur dark:bg-gray-900/95 dark:border-gray-800 flex flex-col",
-          "transition-transform duration-300 ease-in-out",
-          openMobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          "fixed z-40 inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shadow-sm transition-transform",
+          "lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="h-14 flex items-center px-5 border-b dark:border-gray-800">
-          <Link
-            href="/dashboard"
-            className="font-bold text-lg tracking-tight text-gray-900 dark:text-gray-100"
-          >
-            PHPF
-          </Link>
+        <div className="h-16 flex items-center px-6 font-bold text-lg tracking-tight border-b border-gray-100 dark:border-gray-800">
+          PHPF
         </div>
-
-        <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-3">
-            {dashboardNav.map((item) => {
-              const active =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      "text-gray-600 hover:text-gray-900 hover:bg-gray-100",
-                      "dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800",
-                      active &&
-                        "bg-teal-50 text-teal-700 hover:text-teal-700 hover:bg-teal-50 dark:bg-teal-900/30 dark:text-teal-200 dark:hover:bg-teal-900/40"
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          {items.map((it) => {
+            const active = pathname === it.href || pathname.startsWith(it.href + "/");
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-teal-900/30 dark:hover:text-teal-200",
+                  active &&
+                    "nav-active font-semibold ring-1 ring-teal-500/10 dark:ring-teal-300/20"
+                )}
+                onClick={onClose}
+              >
+                {it.icon}
+                <span>{it.label}</span>
+              </Link>
+            );
+          })}
         </nav>
-
-        <div className="border-t dark:border-gray-800 p-3 text-xs text-gray-500 dark:text-gray-500">
-          © {new Date().getFullYear()} PHPF
+        <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+          >
+            Cerrar sesión
+          </button>
         </div>
       </aside>
     </>
   );
-};
+}

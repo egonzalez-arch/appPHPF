@@ -1,23 +1,33 @@
 "use client";
-import { Bell, LogOut, Search } from "lucide-react";
+import { FaBars } from "react-icons/fa";
+import { useAuth } from "@/context/AuthContext";
 
-export const Topbar = () => {
+interface TopbarProps {
+  onMenu: () => void;
+}
+
+export function Topbar({ onMenu }: TopbarProps) {
+  const { user, logout } = useAuth();
+
   return (
-    <header className="h-14 sticky top-0 z-30 flex items-center gap-4 border-b bg-white/80 backdrop-blur dark:bg-gray-900/80 dark:border-gray-800 px-4">
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          placeholder="Buscar..."
-          className="w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-        />
+    <header className="h-16 flex items-center gap-4 px-4 sm:px-6 lg:px-10 border-b border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur">
+      <button
+        onClick={onMenu}
+        className="lg:hidden p-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+        aria-label="Menu"
+      >
+        <FaBars />
+      </button>
+      <div className="flex-1 font-semibold text-sm sm:text-base">Dashboard</div>
+      <div className="flex items-center gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+        <span>{user?.email}</span>
+        <button
+          onClick={logout}
+          className="px-3 py-1 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700"
+        >
+          Salir
+        </button>
       </div>
-      <button className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-        <Bell className="h-4 w-4" />
-      </button>
-      <button className="h-9 inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-700">
-        <LogOut className="h-4 w-4" />
-        <span className="hidden md:inline">Salir</span>
-      </button>
     </header>
   );
-};
+}
