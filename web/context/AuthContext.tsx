@@ -14,29 +14,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
 
-  // Validar sesión al montar usando la cookie
-useEffect(() => {
-  (async () => {
-    try {
-      const user = await validateSession();
-      setUser(user);
-    } catch (err) {
-      setUser(null);
-      // Si quieres, puedes mostrar un log informativo en vez de un error
-      // console.info('Sesión no válida (usuario no logueado)');
-    }
-  })();
-}, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const u = await validateSession(); // intenta refresh con el refreshToken almacenado
+        setUser(u);
+      } catch {
+        setUser(null);
+      }
+    })();
+  }, []);
 
-  // Login
   const login = async (email: string, password: string) => {
-    const user = await apiLogin(email, password);
-    setUser(user);
+    const u = await apiLogin(email, password); // guarda tokens y devuelve user
+    setUser(u);
   };
 
-  // Logout
   const logout = async () => {
-    await apiLogout();
+    await apiLogout(); // limpia tokens
     setUser(null);
     window.location.href = "/login";
   };

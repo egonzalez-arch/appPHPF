@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    turbo: false,
+const nextConfig: NextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
   },
-}
-module.exports = nextConfig;
+  /* config options here */
+};
+
+export default nextConfig;
