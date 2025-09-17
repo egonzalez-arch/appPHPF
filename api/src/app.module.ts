@@ -2,7 +2,8 @@ import {TypeOrmModule} from '@nestjs/typeorm'
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import {ConfigModule, ConfigService} from '@nestjs/config'
+import {ConfigService} from '@nestjs/config'
+import { AppConfigModule } from './config/config.module';
 
 // Importa todos los módulos encontrados en api/src/modules/
 import { AppointmentsModule } from './modules/appointments/appointments.module';
@@ -27,13 +28,10 @@ import { typeOrmConfig } from './config/typeorm.config';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true
-    }),
+    AppConfigModule,
     TypeOrmModule.forRootAsync({
       useFactory: typeOrmConfig,
       inject: [ConfigService]
-
     }),
     AppointmentsModule,
     AuditEventsModule,

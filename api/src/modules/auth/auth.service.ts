@@ -5,12 +5,14 @@ import { Repository } from 'typeorm';
 import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto } from './dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User) private repo: Repository<User>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
 async register(dto: RegisterDto) {
@@ -33,7 +35,7 @@ async register(dto: RegisterDto) {
   async refresh(dto: RefreshTokenDto) {
     try {
       const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+        secret: this.configService.get('jwt.refreshSecret'),
       });
       const user = await this.repo.findOne({ where: { id: payload.sub } });
       if (!user) throw new UnauthorizedException('Usuario no encontrado');
@@ -48,15 +50,15 @@ async register(dto: RegisterDto) {
   generateToken(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     return this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'secret',
-      expiresIn: '1h',
+      secret: this.configService.get('jwt.secret'),
+      expiresIn: this.configService.get('jwt.expiresIn'),
     });
   }
 
   generateRefreshToken(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     return this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+      secret: this.configService.get('jwt.refreshSecret'),
       expiresIn: '7d',
     });
   }
