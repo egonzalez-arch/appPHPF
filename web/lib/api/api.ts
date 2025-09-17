@@ -3,7 +3,6 @@ export const client = new QueryClient();
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-
 // Interfaces recomendadas
 export interface Patient {
   id: string;
@@ -39,11 +38,61 @@ export interface Doctor {
   [key: string]: unknown;
 }
 
-// Patients
+/**
+ * Opción existente (cookies) — la dejamos por compatibilidad si hay otros lugares que la usan.
+ * Si el backend de GET /patients requiere Bearer, usa fetchPatientsWithSession() de abajo.
+ */
 export async function fetchPatients(): Promise<Patient[]> {
-  const res = await fetch(`${API_URL}/patients`, { credentials: "include" });
-  if (!res.ok) throw new Error("No autorizado");
+  const res = await fetch(`${API_URL}/patients`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || 'No autorizado');
+  }
   return res.json();
+}
+
+/**
+ * NUEVO: obtiene sesión (user + accessToken) usando cookies.
+ * Requiere que el backend devuelva accessToken en /auth/validate-session.
+ */
+export async function getSession(): Promise<{ user: any | null; accessToken?: string }> {
+  const res = await fetch(`${API_URL}/auth/validate-session`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) return { user: null };
+  const data = await res.json();
+  return { user: data.user || null, accessToken: data.accessToken };
+}
+
+/**
+ * NUEVO: versión con Bearer para GET /patients
+ */
+export async function fetchPatientsWithToken(token: string): Promise<Patient[]> {
+  const res = await fetch(`${API_URL}/patients`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || 'No autorizado');
+  }
+  return res.json();
+}
+
+/**
+ * NUEVO: flujo completo usando la misma lógica de sesión (cookies) para obtener el accessToken
+ * y luego llamando a /patients con Authorization: Bearer.
+ */
+export async function fetchPatientsWithSession(): Promise<Patient[]> {
+  const { accessToken } = await getSession();
+  if (!accessToken) {
+    throw new Error('No autorizado');
+  }
+  return fetchPatientsWithToken(accessToken);
 }
 
 export async function createPatient(data: Omit<Patient, "id">): Promise<Patient> {
@@ -74,7 +123,12 @@ export async function deletePatient(id: string): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (res.status === 204) return;
+  try {
+    await res.json(); // si hay cuerpo, consúmelo
+  } catch {
+    // ignora si no hay JSON
+  }
 }
 
 // Users
@@ -161,24 +215,27 @@ export async function deleteDoctor(id: string): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (res.status === 204) return;
+  try {
+    await res.json();
+  } catch {
+    // ignora si no hay JSON
+  }
 }
 
-// Login
+// Login (sin cambios, para no impactar el flujo actual)
 export async function login(email: string, password: string): Promise<any> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-    credentials: "include", // Importante para cookies
+    credentials: "include",
   });
   if (!res.ok) {
-    // Aquí puedes lanzar un error personalizado si la respuesta es 401, 403, etc.
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || "Credenciales incorrectas");
   }
   const data = await res.json();
-  // Asegúrate de que el user venga en la respuesta
   if (!data.user) {
     throw new Error("Credenciales incorrectas");
   }
@@ -193,7 +250,7 @@ export async function logout(): Promise<void> {
   });
 }
 
-// Validar sesión
+// Validar sesión (se mantiene para compatibilidad en el resto del código)
 export async function validateSession(): Promise<any> {
   const res = await fetch(`${API_URL}/auth/validate-session`, {
     method: "POST",
