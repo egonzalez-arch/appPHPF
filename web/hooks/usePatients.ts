@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchPatients } from '../lib/api/api';
 
-export function usePatients(token?: string) {
+export function usePatients() {
   return useQuery({
     queryKey: ['patients'],
-    queryFn: () => fetchPatients(token!),
-    enabled: !!token, // evita llamar sin token
+    queryFn: () => fetchPatients(),
+    enabled: true, // uses cookies for auth
   });
 }
