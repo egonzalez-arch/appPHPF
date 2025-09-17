@@ -6,10 +6,20 @@ import { CreatePatientFileDto, UpdatePatientFileDto } from './dto';
 
 @Injectable()
 export class PatientFileService {
-  constructor(@InjectRepository(PatientFile) private repo: Repository<PatientFile>) {}
+  constructor(
+    @InjectRepository(PatientFile) private repo: Repository<PatientFile>,
+  ) {}
 
-  findOne(id: string) { return this.repo.findOne({ where: { id } }); }
-  create(dto: CreatePatientFileDto) { return this.repo.save(dto); }
-  update(id: string, dto: UpdatePatientFileDto) { return this.repo.update(id, dto); }
-  remove(id: string) { return this.repo.delete(id); }
+  findOne(id: string) {
+    return this.repo.findOne({ where: { id } });
+  }
+  create(dto: CreatePatientFileDto) {
+    return this.repo.save(dto);
+  }
+  update(id: string, dto: UpdatePatientFileDto) {
+    return this.repo.update(id, dto);
+  }
+  remove(id: string) {
+    return this.repo.delete(id);
+  }
 }

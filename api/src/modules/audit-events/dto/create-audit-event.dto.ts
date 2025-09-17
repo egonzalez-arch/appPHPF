@@ -28,5 +28,4 @@ export class CreateAuditEventDto {
 
   @IsOptional()
   metadataJson?: any;
-  
 }

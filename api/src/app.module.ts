@@ -1,8 +1,8 @@
-import {TypeOrmModule} from '@nestjs/typeorm'
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import {ConfigModule, ConfigService} from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 // Importa todos los módulos encontrados en api/src/modules/
 import { AppointmentsModule } from './modules/appointments/appointments.module';
@@ -24,16 +24,19 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { UsersModule } from './modules/users/users.module';
 import { VitalsModule } from './modules/vitals/vitals.module';
 import { typeOrmConfig } from './config/typeorm.config';
+import configuration from './config/configuration';
+import { validate } from './config/validation.env';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true
+      isGlobal: true,
+      load: [configuration],
+      validate,
     }),
     TypeOrmModule.forRootAsync({
       useFactory: typeOrmConfig,
-      inject: [ConfigService]
-
+      inject: [ConfigService],
     }),
     AppointmentsModule,
     AuditEventsModule,

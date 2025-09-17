@@ -16,19 +16,9 @@ export class LoggingInterceptor implements NestInterceptor {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest();
     const response = ctx.getResponse();
-    
-    const { method, url, ip } = request;
-    const userAgent = request.get('User-Agent') || '';
-    const now = Date.now();
 
-    this.logger.log({
-      message: 'Incoming request',
-      method,
-      url,
-      ip,
-      userAgent,
-      timestamp: new Date().toISOString(),
-    });
+    const { method, url } = request;
+    const now = Date.now();
 
     return next.handle().pipe(
       tap({
@@ -36,25 +26,16 @@ export class LoggingInterceptor implements NestInterceptor {
           const { statusCode } = response;
           const duration = Date.now() - now;
 
-          this.logger.log({
-            message: 'Request completed',
-            method,
-            url,
-            statusCode,
-            duration: `${duration}ms`,
-            timestamp: new Date().toISOString(),
-          });
+          // Log in the format: [GET] /appointments 200 +45ms
+          this.logger.log(`[${method}] ${url} ${statusCode} +${duration}ms`);
         },
-        error: () => {
+        error: (error) => {
           const duration = Date.now() - now;
+          const statusCode = error?.status || 500;
 
-          this.logger.error({
-            message: 'Request failed',
-            method,
-            url,
-            duration: `${duration}ms`,
-            timestamp: new Date().toISOString(),
-          });
+          this.logger.error(
+            `[${method}] ${url} ${statusCode} +${duration}ms - ${error?.message || 'Unknown error'}`,
+          );
         },
       }),
     );

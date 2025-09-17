@@ -3,27 +3,27 @@ import { UserRole, UserStatus } from '../user.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
-   @ApiProperty()
+  @ApiProperty()
   @IsEmail()
   email: string;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsString()
   password: string;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsEnum(UserRole)
   role: UserRole;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsString()
   firstName: string;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsString()
   lastName: string;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsEnum(UserStatus)
   @IsOptional()
   status?: UserStatus;

@@ -1,4 +1,9 @@
-export type CanonicalRole = 'ADMIN' | 'DOCTOR' | 'PATIENT' | 'PACIENTE' | 'INSURER';
+export type CanonicalRole =
+  | 'ADMIN'
+  | 'DOCTOR'
+  | 'PATIENT'
+  | 'PACIENTE'
+  | 'INSURER';
 
 /**
  * Normaliza un rol arbitrario a un rol canónico en MAYÚSCULAS.

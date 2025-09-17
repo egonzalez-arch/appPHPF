@@ -8,8 +8,16 @@ import { CreateClinicDto, UpdateClinicDto } from './dto';
 export class ClinicService {
   constructor(@InjectRepository(Clinic) private repo: Repository<Clinic>) {}
 
-  findOne(id: string) { return this.repo.findOne({ where: { id } }); }
-  create(dto: CreateClinicDto) { return this.repo.save(dto); }
-  update(id: string, dto: UpdateClinicDto) { return this.repo.update(id, dto); }
-  remove(id: string) { return this.repo.delete(id); }
+  findOne(id: string) {
+    return this.repo.findOne({ where: { id } });
+  }
+  create(dto: CreateClinicDto) {
+    return this.repo.save(dto);
+  }
+  update(id: string, dto: UpdateClinicDto) {
+    return this.repo.update(id, dto);
+  }
+  remove(id: string) {
+    return this.repo.delete(id);
+  }
 }

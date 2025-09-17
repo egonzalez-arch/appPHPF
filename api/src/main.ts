@@ -2,7 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser'; // <--- corregido aquí
+import cookieParser from 'cookie-parser';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { QueryFailedExceptionFilter } from './common/filters/query-failed-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { setupSwagger } from './swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,23 +17,31 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use(cookieParser()); // <--- ya no da error
+  app.use(cookieParser());
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  // Global validation pipe with enhanced configuration
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
 
-  const config = new DocumentBuilder()
-    .setTitle('PHPF EHR API')
-    .setDescription('API docs for medical practice/EHR with insurers')
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .build();
+  // Global exception filters
+  app.useGlobalFilters(
+    new QueryFailedExceptionFilter(),
+    new HttpExceptionFilter(),
+  );
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+  // Global logging interceptor
+  app.useGlobalInterceptors(new LoggingInterceptor());
+
+  // Setup Swagger documentation
+  setupSwagger(app);
 
   await app.listen(3001);
 }

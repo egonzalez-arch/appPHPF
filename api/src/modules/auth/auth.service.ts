@@ -1,8 +1,17 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { Repository } from 'typeorm';
-import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto } from './dto';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  ResetPasswordDto,
+} from './dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
@@ -13,14 +22,14 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-async register(dto: RegisterDto) {
-  const exists = await this.repo.findOne({ where: { email: dto.email } });
-  if (exists) throw new BadRequestException('Email taken');
-  const passwordHash = await bcrypt.hash(dto.password, 10);
-  const { password, ...rest } = dto; // Elimina password
-  const user = this.repo.create({ ...rest, passwordHash });
-  return this.repo.save(user);
-}
+  async register(dto: RegisterDto) {
+    const exists = await this.repo.findOne({ where: { email: dto.email } });
+    if (exists) throw new BadRequestException('Email taken');
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const { password, ...rest } = dto; // Elimina password
+    const user = this.repo.create({ ...rest, passwordHash });
+    return this.repo.save(user);
+  }
 
   async login(dto: LoginDto) {
     const user = await this.validateUser(dto);
