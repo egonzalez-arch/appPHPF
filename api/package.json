@@ -17,7 +17,11 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "npm run typeorm -- migration:generate -d ./src/config/data-source.ts",
+    "migration:run": "npm run typeorm -- migration:run -d ./src/config/data-source.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d ./src/config/data-source.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
@@ -34,6 +38,7 @@
     "cookie-parser": "^1.4.7",
     "express-rate-limit": "^8.0.1",
     "helmet": "^8.1.0",
+    "joi": "^18.0.1",
     "mysql2": "^3.14.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -75,22 +80,5 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.20.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
   }
 }
