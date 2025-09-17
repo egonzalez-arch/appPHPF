@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser'; // <--- corregido aquí
+import cookieParser from 'cookie-parser';
+import { setupSwagger } from './swagger';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,23 +14,20 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use(cookieParser()); // <--- ya no da error
+  app.use(cookieParser());
 
+  // Global validation pipe with recommended settings
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
   }));
 
-  const config = new DocumentBuilder()
-    .setTitle('PHPF EHR API')
-    .setDescription('API docs for medical practice/EHR with insurers')
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .build();
+  // Global exception filter
+  app.useGlobalFilters(new AllExceptionsFilter());
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+  // Setup Swagger documentation
+  setupSwagger(app);
 
   await app.listen(3001);
 }
