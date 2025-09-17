@@ -23,7 +23,102 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+PHPF EHR API - A medical practice Electronic Health Record system built with NestJS and TypeORM.
+
+## Project setup
+
+```bash
+$ npm install
+```
+
+## Environment Configuration
+
+1. Copy the example environment file:
+```bash
+$ cp .env.example .env
+```
+
+2. Update the `.env` file with your database and JWT configuration:
+```env
+# Environment
+NODE_ENV=development
+PORT=3001
+
+# Database Configuration
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+DB_DATABASE=phpf_db
+
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_SECRET=your_super_secret_refresh_key_here
+
+# Authentication
+AUTH_ENABLE=true
+```
+
+## Database Migrations
+
+This project uses TypeORM migrations for database schema management. Synchronize is disabled for production safety.
+
+### Generate a new migration
+```bash
+$ npm run typeorm:generate
+```
+
+### Run pending migrations
+```bash
+$ npm run typeorm:run
+```
+
+### Revert the last migration
+```bash
+$ npm run typeorm:revert
+```
+
+**Important**: Always review generated migrations before applying them to production.
+
+## Compile and run the project
+
+```bash
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
+```
+
+## Authentication & Authorization
+
+The API includes JWT-based authentication with role-based access control:
+
+- **Roles**: `administrador`, `doctor`, `paciente`
+- **Guards**: Use `@UseGuards(JwtAuthGuard, RolesGuard)` on controllers/routes
+- **Decorators**: Use `@Roles('doctor', 'administrador')` to specify required roles
+
+Example protected endpoint:
+```typescript
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('doctor', 'administrador')
+@Get('sensitive-data')
+getSensitiveData() {
+  // Only doctors and administrators can access
+}
+```
+
+## Validation & Error Handling
+
+- Global validation pipe with whitelist and transform enabled
+- Consistent error responses via AllExceptionsFilter
+- Request/response logging via LoggingInterceptor
+- Use DTOs with class-validator decorators for input validation
 
 ## Project setup
 
