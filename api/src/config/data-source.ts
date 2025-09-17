@@ -13,11 +13,11 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
   database: process.env.DB_DATABASE || 'phpf_db',
-  
+
   entities: [join(__dirname, '../modules/**/*.entity.{ts,js}')],
   migrations: [join(__dirname, '../migrations/*{.ts,.js}')],
   namingStrategy: new SnakeNamingStrategy(),
-  
+
   // CLI specific options
   synchronize: false,
   logging: true,

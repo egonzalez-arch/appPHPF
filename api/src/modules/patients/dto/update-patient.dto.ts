@@ -1,4 +1,10 @@
-import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+} from 'class-validator';
 import { PatientSex } from './patient-sex.enum';
 
 export class UpdatePatientDto {

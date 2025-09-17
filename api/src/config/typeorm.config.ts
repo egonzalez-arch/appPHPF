@@ -1,28 +1,21 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
-import { User } from '../modules/users/user.entity';
-import { join } from "path";
-import { z } from 'zod';
+import { join } from 'path';
 
+export const typeOrmConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => ({
+  type: 'postgres',
+  host: configService.get('database.host'),
+  port: configService.get('database.port'),
+  username: configService.get('database.username'),
+  password: configService.get('database.password'),
+  database: configService.get('database.database'),
 
-
-  export const typeOrmConfig = (configService: ConfigService) : TypeOrmModuleOptions => ({
-    type: 'postgres',
-    host: configService.get('DATABASE_HOST'),
-    port: configService.get('DATABASE_PORT'),
-    username: configService.get('DATABASE_USER'),
-    password: configService.get('DATABASE_PASS'),
-    database: configService.get('DATABASE_NAME'),
-    
-    ssl: false,
-    logging: true,
-    entities: [join(__dirname, '../modules/**/*.entity.{ts,js}')],
-    migrations: [join(__dirname, '/../migrations/*{.ts,.js}')],
-    synchronize: true
-
-})
-
-
-  
-
+  ssl: false,
+  logging: configService.get('database.logging'),
+  entities: [join(__dirname, '../modules/**/*.entity.{ts,js}')],
+  migrations: [join(__dirname, '/../migrations/*{.ts,.js}')],
+  synchronize: configService.get('database.synchronize'),
+});

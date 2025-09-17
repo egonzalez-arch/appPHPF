@@ -2,8 +2,8 @@ import { IsUUID, IsDateString, IsString } from 'class-validator';
 
 export class CreatePrescriptionDto {
   @IsUUID()
-  encounterId: string;   // ← AGREGAR ESTA PROPIEDAD
-  
+  encounterId: string; // ← AGREGAR ESTA PROPIEDAD
+
   @IsUUID()
   patientId: string;
 

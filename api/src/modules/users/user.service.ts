@@ -8,9 +8,19 @@ import { CreateUserDto, UpdateUserDto } from './dto';
 export class UserService {
   constructor(@InjectRepository(User) private repo: Repository<User>) {}
 
-  findAll() { return this.repo.find(); }
-  findOne(id: string) { return this.repo.findOne({ where: { id } }); }
-  create(dto: CreateUserDto) { return this.repo.save(dto); }
-  update(id: string, dto: UpdateUserDto) { return this.repo.update(id, dto); }
-  remove(id: string) { return this.repo.delete(id); }
+  findAll() {
+    return this.repo.find();
+  }
+  findOne(id: string) {
+    return this.repo.findOne({ where: { id } });
+  }
+  create(dto: CreateUserDto) {
+    return this.repo.save(dto);
+  }
+  update(id: string, dto: UpdateUserDto) {
+    return this.repo.update(id, dto);
+  }
+  remove(id: string) {
+    return this.repo.delete(id);
+  }
 }

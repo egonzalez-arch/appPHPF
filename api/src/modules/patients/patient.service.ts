@@ -8,9 +8,19 @@ import { CreatePatientDto, UpdatePatientDto } from './dto';
 export class PatientService {
   constructor(@InjectRepository(Patient) private repo: Repository<Patient>) {}
 
-  async findAll() { return this.repo.find({ relations: ['user'] }); }
-  async findOne(id: string) { return this.repo.findOne({ where: { id }, relations: ['user'] }); }
-  async create(dto: CreatePatientDto) { return this.repo.save(dto); }
-  async update(id: string, dto: UpdatePatientDto) { return this.repo.update(id, dto); }
-  async remove(id: string) { return this.repo.delete(id); }
+  async findAll() {
+    return this.repo.find({ relations: ['user'] });
+  }
+  async findOne(id: string) {
+    return this.repo.findOne({ where: { id }, relations: ['user'] });
+  }
+  async create(dto: CreatePatientDto) {
+    return this.repo.save(dto);
+  }
+  async update(id: string, dto: UpdatePatientDto) {
+    return this.repo.update(id, dto);
+  }
+  async remove(id: string) {
+    return this.repo.delete(id);
+  }
 }

@@ -5,7 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PrescriptionItem } from './prescription-item.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([PrescriptionItem])],
+  imports: [TypeOrmModule.forFeature([PrescriptionItem])],
   controllers: [PrescriptionItemController],
   providers: [PrescriptionItemService],
 })

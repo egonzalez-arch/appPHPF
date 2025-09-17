@@ -6,7 +6,9 @@ import { CreateAuditEventDto } from './dto';
 
 @Injectable()
 export class AuditEventService {
-  constructor(@InjectRepository(AuditEvent) private repo: Repository<AuditEvent>) {}
+  constructor(
+    @InjectRepository(AuditEvent) private repo: Repository<AuditEvent>,
+  ) {}
 
   findAll(entity?: string, entityId?: string) {
     const where: any = {};
@@ -14,6 +16,10 @@ export class AuditEventService {
     if (entityId) where.entityId = entityId;
     return this.repo.find({ where });
   }
-  findOne(id: string) { return this.repo.findOne({ where: { id } }); }
-  create(dto: CreateAuditEventDto) { return this.repo.save(dto); }
+  findOne(id: string) {
+    return this.repo.findOne({ where: { id } });
+  }
+  create(dto: CreateAuditEventDto) {
+    return this.repo.save(dto);
+  }
 }

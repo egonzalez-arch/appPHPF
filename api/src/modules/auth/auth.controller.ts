@@ -1,6 +1,11 @@
 import { Controller, Post, Body, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto, ResetPasswordDto } from './dto';
+import {
+  LoginDto,
+  RegisterDto,
+  RefreshTokenDto,
+  ResetPasswordDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -15,8 +20,16 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto, @Res() res) {
     const { accessToken, refreshToken, user } = await this.service.login(dto);
-    res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
-    res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+    res.cookie('jwt', accessToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+    });
+    res.cookie('refresh', refreshToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+    });
     return res.status(200).json({ user });
   }
 
@@ -24,14 +37,22 @@ export class AuthController {
   async logout(@Res() res) {
     res.clearCookie('jwt');
     res.clearCookie('refresh');
-    return res.status(200).json({ message: "Logged out" });
+    return res.status(200).json({ message: 'Logged out' });
   }
 
   @Post('refresh')
   async refresh(@Body() dto: RefreshTokenDto, @Res() res) {
     const { accessToken, refreshToken, user } = await this.service.refresh(dto);
-    res.cookie('jwt', accessToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
-    res.cookie('refresh', refreshToken, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+    res.cookie('jwt', accessToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+    });
+    res.cookie('refresh', refreshToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+    });
     return res.status(200).json({ user });
   }
 

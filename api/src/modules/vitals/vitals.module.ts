@@ -4,7 +4,6 @@ import { VitalsController } from './vitals.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Vitals } from './vitals.entity';
 
-
 @Module({
   imports: [TypeOrmModule.forFeature([Vitals])],
   controllers: [VitalsController],

@@ -88,7 +88,7 @@ describe('AuthService', () => {
         {
           secret: 'test-secret',
           expiresIn: '1h',
-        }
+        },
       );
       expect(result).toBe(expectedToken);
     });
@@ -112,7 +112,7 @@ describe('AuthService', () => {
         {
           secret: 'test-refresh-secret',
           expiresIn: '7d',
-        }
+        },
       );
       expect(result).toBe(expectedToken);
     });
