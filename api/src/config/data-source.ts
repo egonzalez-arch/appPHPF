@@ -11,8 +11,13 @@ export default new DataSource({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   username: process.env.DB_USERNAME || 'postgres',
+<<<<<<< HEAD
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'phpf',
+=======
+  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.DB_DATABASE || 'phpf_db',
+>>>>>>> 682a6194db088fdf4ed6568c9cdc4e16329b99e7
   
   entities: [join(__dirname, '../modules/**/*.entity.{ts,js}')],
   migrations: [join(__dirname, '../migrations/*{.ts,.js}')],
