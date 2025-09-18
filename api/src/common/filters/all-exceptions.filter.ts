@@ -1,59 +1,50 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
+/**
+ * Filtro global que formatea errores y evita revelar stack interno en respuestas.
+ * Extensible para integrar un logger estructurado (pino/winston).
+ */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx     = host.switchToHttp();
+    const response: Response = ctx.getResponse();
+    const request: Request   = ctx.getRequest();
 
-  catch(exception: unknown, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const isHttp = exception instanceof HttpException;
+    const status = isHttp
+      ? (exception as HttpException).getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let details: any = null;
+    const baseMessage = isHttp
+      ? (exception as HttpException).getResponse()
+      : 'Internal server error';
 
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
-      
-      if (typeof exceptionResponse === 'string') {
-        message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object') {
-        message = (exceptionResponse as any).message || exception.message;
-        details = (exceptionResponse as any).details;
-      }
-    } else if (exception instanceof Error) {
-      message = exception.message;
-    }
+    // Normaliza posibles formatos de HttpException (string u objeto)
+    const normalized =
+      typeof baseMessage === 'string'
+        ? { message: baseMessage }
+        : (baseMessage as Record<string, unknown>);
 
-    // Structured logging
-    this.logger.error({
-      timestamp: new Date().toISOString(),
+    const payload = {
+      statusCode: status,
       path: request.url,
       method: request.method,
-      statusCode: status,
-      message,
-      stack: exception instanceof Error ? exception.stack : undefined,
-    });
-
-    const errorResponse = {
-      success: false,
-      statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
-      message,
-      ...(details && { details }),
+      ...normalized,
     };
 
-    response.status(status).json(errorResponse);
+    // Placeholder de logging (reemplazar con logger estructurado más adelante)
+    // eslint-disable-next-line no-console
+    console.error('[ERROR]', JSON.stringify(payload), exception);
+
+    response.status(status).json(payload);
   }
 }

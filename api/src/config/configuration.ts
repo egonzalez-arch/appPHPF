@@ -7,13 +7,11 @@ export default () => ({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432', 10),
     username: process.env.DB_USERNAME || 'postgres',
-<<<<<<< HEAD
+//<<<<<<< HEAD
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'phpf',
-=======
-    password: process.env.DB_PASSWORD || 'password',
-    database: process.env.DB_DATABASE || 'phpf_db',
->>>>>>> 682a6194db088fdf4ed6568c9cdc4e16329b99e7
+
+//>>>>>>> 682a6194db088fdf4ed6568c9cdc4e16329b99e7
   },
   
   jwt: {
@@ -27,6 +25,6 @@ export default () => ({
   },
   
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
   },
 });

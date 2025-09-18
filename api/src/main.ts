@@ -1,36 +1,38 @@
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser'; // <--- corregido aquí
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { setupSwagger } from './config/swagger.config';
+// (Opcional) import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Habilita CORS para el frontend en localhost:3000
-  app.enableCors({
-    origin: 'http://localhost:3000',
-    credentials: true,
-  });
+  // Validación global estricta
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true, // Ajustar a false temporalmente si rompe flujos existentes.
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
-  app.use(cookieParser()); // <--- ya no da error
+  // Filtro global de excepciones
+  app.useGlobalFilters(new AllExceptionsFilter());
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  // Interceptor (activar más adelante si deseas)
+  // app.useGlobalInterceptors(new LoggingInterceptor());
 
-  const config = new DocumentBuilder()
-    .setTitle('PHPF EHR API')
-    .setDescription('API docs for medical practice/EHR with insurers')
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .build();
+  // Swagger
+  setupSwagger(app);
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+  // (Opcional) CORS si no estaba habilitado
+  app.enableCors();
 
-  await app.listen(3001);
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  // eslint-disable-next-line no-console
+  console.log(`API escuchando en puerto ${port}. Swagger: /docs`);
 }
 bootstrap();
