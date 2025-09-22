@@ -1,38 +1,36 @@
 import { NestFactory } from '@nestjs/core';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { setupSwagger } from './config/swagger.config';
-// (Opcional) import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import cookieParser from 'cookie-parser'; // <--- corregido aquí
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Validación global estricta
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true, // Ajustar a false temporalmente si rompe flujos existentes.
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
+  // Habilita CORS para el frontend en localhost:3000
+  app.enableCors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+  });
 
-  // Filtro global de excepciones
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.use(cookieParser()); // <--- ya no da error
 
-  // Interceptor (activar más adelante si deseas)
-  // app.useGlobalInterceptors(new LoggingInterceptor());
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }));
 
-  // Swagger
-  setupSwagger(app);
+  const config = new DocumentBuilder()
+    .setTitle('PHPF EHR API')
+    .setDescription('API docs for medical practice/EHR with insurers')
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .build();
 
-  // (Opcional) CORS si no estaba habilitado
-  app.enableCors();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('swagger', app, document);
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  // eslint-disable-next-line no-console
-  console.log(`API escuchando en puerto ${port}. Swagger: /docs`);
+  await app.listen(3001);
 }
 bootstrap();

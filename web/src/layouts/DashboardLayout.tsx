@@ -2,16 +2,27 @@ import React from 'react';
 import Sidebar from '../components/ui/Sidebar';
 import Header from '../components/ui/Header';
 
-interface Props { children: React.ReactNode }
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+}
 
-export const DashboardLayout: React.FC<Props> = ({ children }) => {
+/**
+ * Layout persistente (Sidebar + Header).
+ * NO modifica clases existentes: reutiliza las que ya tengas.
+ * Ajusta los className a los que ya usa tu CSS actual.
+ */
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   return (
     <div className="app-shell">
       <Sidebar />
       <div className="main-panel">
         <Header />
-        <main>{children}</main>
+        <main className="content-area">
+          {children}
+        </main>
       </div>
     </div>
   );
 };
+
+export default DashboardLayout;
