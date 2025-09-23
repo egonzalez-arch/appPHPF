@@ -19,12 +19,16 @@ export function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <Sidebar open={open} onClose={() => setOpen(false)} />
+      {/* Sidebar con ancho fijo */}
+      <div className="w-64 flex-shrink-0">
+        <Sidebar open={open} onClose={() => setOpen(false)} />
+      </div>
+      {/* Área principal con flex-1 min-w-0 */}
       <div className="flex flex-1 flex-col min-w-0">
         {withTopbar && <Topbar onMenu={() => setOpen((o) => !o)} />}
         <main
           className={cn(
-            "flex-1 w-full px-4 sm:px-6 lg:px-10 py-8 overflow-x-hidden",
+            "flex-1 px-2 sm:px-6 lg:px-10 py-6 min-w-0",
             className
           )}
         >

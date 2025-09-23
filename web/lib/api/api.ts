@@ -6,26 +6,25 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001
 // Interfaces recomendadas
 export interface Patient {
   id: string;
-  name: string;
-  email: string;
+  bloodType: string;
   age?: number;
   firstName?: string;
   lastName?: string;
   birthDate?: string;
-  sex?: string;
-  document?: string;
+  PatientSex?: string;
   phone?: string;
-  address?: string;
+  allergies?: JSON;
   [key: string]: unknown;
 }
 
 export interface User {
   id: string;
-  name: string;
+  firstname: string;
   email: string;
   role?: string;
   status?: string;
-  disabled?: boolean;
+  phone?: string;
+  status?: boolean;
   [key: string]: unknown;
 }
 
