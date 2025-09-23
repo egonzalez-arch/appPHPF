@@ -3,6 +3,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser'; // <--- corregido aquí
+import { csrfProtection } from './common/middleware/csrf.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,7 +14,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use(cookieParser()); // <--- ya no da error
+   app.use(cookieParser()); // <--- ya no da error
+   app.use(csrfProtection);
+ 
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

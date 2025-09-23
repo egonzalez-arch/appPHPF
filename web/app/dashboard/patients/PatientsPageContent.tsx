@@ -109,7 +109,7 @@ export default function PatientsPageContent() {
                 <th className="px-4 py-2 border-b">Apellido</th>
                 <th className="px-4 py-2 border-b">Fecha Nac.</th>
                 <th className="px-4 py-2 border-b">Sexo</th>
-                <th className="px-4 py-2 border-b">Documento</th>
+               {/* <th className="px-4 py-2 border-b">Documento</th> */}
                 <th className="px-4 py-2 border-b">Teléfono</th>
                 <th className="px-4 py-2 border-b">Dirección</th>
                 <th className="px-4 py-2 border-b">Acciones</th>
@@ -129,7 +129,7 @@ export default function PatientsPageContent() {
                   <td className="px-4 py-2">{p.lastName}</td>
                   <td className="px-4 py-2">{p.birthDate && new Date(p.birthDate).toLocaleDateString()}</td>
                   <td className="px-4 py-2">{p.sex}</td>
-                  <td className="px-4 py-2">{p.document}</td>
+                  {/* <td className="px-4 py-2">{p.document}</td> */}
                   <td className="px-4 py-2">{p.phone}</td>
                   <td className="px-4 py-2">{p.address}</td>
                   <td className="px-4 py-2 flex gap-2">

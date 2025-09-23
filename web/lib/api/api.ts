@@ -38,14 +38,29 @@ export interface Doctor {
   [key: string]: unknown;
 }
 
+// Helper para leer el CSRF token de la cookie
+function getCsrfTokenFromCookie(): string {
+  if (typeof document === "undefined") return "";
+  return (
+    document.cookie
+      .split("; ")
+      .find(row => row.startsWith("csrf_token="))
+      ?.split("=")[1] || ""
+  );
+}
+
 /**
  * Opción existente (cookies) — la dejamos por compatibilidad si hay otros lugares que la usan.
  * Si el backend de GET /patients requiere Bearer, usa fetchPatientsWithSession() de abajo.
  */
 export async function fetchPatients(): Promise<Patient[]> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
     method: 'GET',
     credentials: 'include',
+    headers: {
+      'X-CSRF-Token': csrfToken,
+    },
   });
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
@@ -59,9 +74,13 @@ export async function fetchPatients(): Promise<Patient[]> {
  * Requiere que el backend devuelva accessToken en /auth/validate-session.
  */
 export async function getSession(): Promise<{ user: any | null; accessToken?: string }> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {
     method: "POST",
     credentials: "include",
+    headers: {
+      'X-CSRF-Token': csrfToken,
+    },
   });
   if (!res.ok) return { user: null };
   const data = await res.json();
@@ -96,10 +115,14 @@ export async function fetchPatientsWithSession(): Promise<Patient[]> {
 }
 
 export async function createPatient(data: Omit<Patient, "id">): Promise<Patient> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -107,10 +130,14 @@ export async function createPatient(data: Omit<Patient, "id">): Promise<Patient>
 }
 
 export async function updatePatient(id: string, data: Partial<Patient>): Promise<Patient> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients/${id}`, {
     method: "PATCH",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -118,9 +145,13 @@ export async function updatePatient(id: string, data: Partial<Patient>): Promise
 }
 
 export async function deletePatient(id: string): Promise<void> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients/${id}`, {
     method: "DELETE",
     credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrfToken,
+    },
   });
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return;
@@ -182,16 +213,26 @@ export async function disableUser(token: string, id: string): Promise<User> {
 
 // Doctor Functions
 export async function fetchDoctors(): Promise<Doctor[]> {
-  const res = await fetch(`${API_URL}/doctors`, { credentials: "include" });
+  const csrfToken = getCsrfTokenFromCookie();
+  const res = await fetch(`${API_URL}/doctors`, {
+    credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrfToken,
+    },
+  });
   if (!res.ok) throw new Error("No autorizado");
   return res.json();
 }
 
 export async function createDoctor(data: Omit<Doctor, "id">): Promise<Doctor> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -199,10 +240,14 @@ export async function createDoctor(data: Omit<Doctor, "id">): Promise<Doctor> {
 }
 
 export async function updateDoctor(id: string, data: Partial<Doctor>): Promise<Doctor> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors/${id}`, {
     method: "PATCH",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -210,9 +255,13 @@ export async function updateDoctor(id: string, data: Partial<Doctor>): Promise<D
 }
 
 export async function deleteDoctor(id: string): Promise<void> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors/${id}`, {
     method: "DELETE",
     credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrfToken,
+    },
   });
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return;
@@ -244,17 +293,25 @@ export async function login(email: string, password: string): Promise<any> {
 
 // Logout
 export async function logout(): Promise<void> {
+  const csrfToken = getCsrfTokenFromCookie();
   await fetch(`${API_URL}/auth/logout`, {
     method: "POST",
     credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrfToken,
+    },
   });
 }
 
 // Validar sesión (se mantiene para compatibilidad en el resto del código)
 export async function validateSession(): Promise<any> {
+  const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {
     method: "POST",
     credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrfToken,
+    },
   });
   if (!res.ok) return null;
   const data = await res.json();
