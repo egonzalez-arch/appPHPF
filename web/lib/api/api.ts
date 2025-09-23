@@ -1,30 +1,40 @@
 import { QueryClient } from '@tanstack/react-query';
+
 export const client = new QueryClient();
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-// Interfaces recomendadas
+// Tipos compatibles con múltiples backends (manteniendo compatibilidad)
+export type StatusString = 'ACTIVE' | 'INACTIVE' | 'active' | 'inactive';
+
+export interface User {
+  id: string;
+  firstname?: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  role?: string;
+  // Soportar múltiples formatos de estado sin romper llamadas existentes
+  status?: StatusString | boolean | 1 | 0 | null;
+  phone?: string;
+  isActive?: boolean; // algunos backends usan isActive
+  createdAt?: string | Date;
+  [key: string]: unknown;
+}
+
 export interface Patient {
   id: string;
-  bloodType: string;
+  bloodType?: string;
   age?: number;
   firstName?: string;
   lastName?: string;
   birthDate?: string;
   PatientSex?: string;
   phone?: string;
-  allergies?: JSON;
-  [key: string]: unknown;
-}
-
-export interface User {
-  id: string;
-  firstname: string;
-  email: string;
-  role?: string;
-  status?: string;
-  phone?: string;
-  status?: boolean;
+  allergies?: JSON | string | null;
+  user?: User | null;
+  nombre?: string;
+  apellido?: string;
   [key: string]: unknown;
 }
 
@@ -39,18 +49,114 @@ export interface Doctor {
 
 // Helper para leer el CSRF token de la cookie
 function getCsrfTokenFromCookie(): string {
-  if (typeof document === "undefined") return "";
+  if (typeof document === 'undefined') return '';
   return (
     document.cookie
-      .split("; ")
-      .find(row => row.startsWith("csrf_token="))
-      ?.split("=")[1] || ""
+      .split('; ')
+      .find((row) => row.startsWith('csrf_token='))
+      ?.split('=')[1] || ''
   );
 }
 
+// Utilidades de estado
+export function isActiveFromUser(u?: User | null): boolean {
+  if (!u) return false;
+  const s = u.status;
+  if (typeof s === 'string') {
+    const v = s.toUpperCase();
+    return v === 'ACTIVE';
+  }
+  if (typeof s === 'number') {
+    return s === 1;
+  }
+  if (typeof s === 'boolean') {
+    return s;
+  }
+  if (typeof u.isActive === 'boolean') {
+    return u.isActive;
+  }
+  return false;
+}
+
+export function toStatusString(active: boolean): StatusString {
+  return active ? 'ACTIVE' : 'INACTIVE';
+}
+
+/**
+ * Construye un payload de actualización de estado compatible con backends que usan:
+ * - status: 'ACTIVE' | 'INACTIVE'
+ * - isActive: boolean
+ */
+function buildStatusPayload(active: boolean, mode: 'string' | 'boolean') {
+  return mode === 'string'
+    ? { status: toStatusString(active) }
+    : { isActive: active };
+}
+
+async function parseOrText(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text || 'Error';
+  }
+}
+
+/**
+ * Actualiza estado de usuario de forma robusta probando ambos formatos.
+ * - Primero intenta PATCH /users/:id { status: 'ACTIVE' | 'INACTIVE' }
+ * - Si falla (400/422), intenta { isActive: boolean }
+ */
+// Deshabilitar usuario usando cookies + CSRF (misma lógica que fetchPatients)
+export async function disableUser(id: string): Promise<User> {
+  const csrfToken = getCsrfTokenFromCookie();
+  const res = await fetch(`${API_URL}/users/${id}/disable`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'X-CSRF-Token': csrfToken,
+    },
+  });
+  const data = await parseOrText(res);
+  if (!res.ok) {
+    throw new Error(
+      typeof data === 'string' ? data : data?.message || 'Error al deshabilitar usuario'
+    );
+  }
+  return data as User;
+}
+
+// Habilitar usuario (poner ACTIVE) usando cookies + CSRF
+export async function enableUser(id: string): Promise<User> {
+  const csrfToken = getCsrfTokenFromCookie();
+  const res = await fetch(`${API_URL}/users/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify({ status: 'ACTIVE' }),
+  });
+  const data = await parseOrText(res);
+  if (!res.ok) {
+    throw new Error(
+      typeof data === 'string' ? data : data?.message || 'Error al habilitar usuario'
+    );
+  }
+  return data as User;
+}
+
+// Toggle helper: según el "activo" deseado, llama a enableUser o disableUser
+export async function changeUserActive(userId: string, active: boolean): Promise<User> {
+  if (active) {
+    return enableUser(userId);
+  }
+  return disableUser(userId);
+}
 /**
  * Opción existente (cookies) — la dejamos por compatibilidad si hay otros lugares que la usan.
- * Si el backend de GET /patients requiere Bearer, usa fetchPatientsWithSession() de abajo.
+ * Si el backend de GET /patients requiere Bearer, usa fetchPatientsWithSession() o fetchPatientsWithToken()
  */
 export async function fetchPatients(): Promise<Patient[]> {
   const csrfToken = getCsrfTokenFromCookie();
@@ -62,7 +168,7 @@ export async function fetchPatients(): Promise<Patient[]> {
     },
   });
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
+    const msg = await res.text().catch(() => '');
     throw new Error(msg || 'No autorizado');
   }
   return res.json();
@@ -75,8 +181,8 @@ export async function fetchPatients(): Promise<Patient[]> {
 export async function getSession(): Promise<{ user: any | null; accessToken?: string }> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
       'X-CSRF-Token': csrfToken,
     },
@@ -86,41 +192,15 @@ export async function getSession(): Promise<{ user: any | null; accessToken?: st
   return { user: data.user || null, accessToken: data.accessToken };
 }
 
-/**
- * NUEVO: versión con Bearer para GET /patients
- */
-export async function fetchPatientsWithToken(token: string): Promise<Patient[]> {
-  const res = await fetch(`${API_URL}/patients`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(msg || 'No autorizado');
-  }
-  return res.json();
-}
 
-/**
- * NUEVO: flujo completo usando la misma lógica de sesión (cookies) para obtener el accessToken
- * y luego llamando a /patients con Authorization: Bearer.
- */
-export async function fetchPatientsWithSession(): Promise<Patient[]> {
-  const { accessToken } = await getSession();
-  if (!accessToken) {
-    throw new Error('No autorizado');
-  }
-  return fetchPatientsWithToken(accessToken);
-}
-
-export async function createPatient(data: Omit<Patient, "id">): Promise<Patient> {
+export async function createPatient(data: Omit<Patient, 'id'>): Promise<Patient> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(data),
   });
@@ -131,11 +211,11 @@ export async function createPatient(data: Omit<Patient, "id">): Promise<Patient>
 export async function updatePatient(id: string, data: Partial<Patient>): Promise<Patient> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients/${id}`, {
-    method: "PATCH",
-    credentials: "include",
+    method: 'PATCH',
+    credentials: 'include',
     headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(data),
   });
@@ -146,10 +226,10 @@ export async function updatePatient(id: string, data: Partial<Patient>): Promise
 export async function deletePatient(id: string): Promise<void> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients/${id}`, {
-    method: "DELETE",
-    credentials: "include",
+    method: 'DELETE',
+    credentials: 'include',
     headers: {
-      "X-CSRF-Token": csrfToken,
+      'X-CSRF-Token': csrfToken,
     },
   });
   if (!res.ok) throw new Error(await res.text());
@@ -161,76 +241,27 @@ export async function deletePatient(id: string): Promise<void> {
   }
 }
 
-// Users
-export async function fetchUsers(token: string): Promise<User[]> {
-  const res = await fetch(`${API_URL}/users`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error("Error al obtener usuarios");
-  return JSON.parse(text);
-}
-
-export async function addUser(token: string, data: Omit<User, "id">): Promise<User> {
-  const res = await fetch(`${API_URL}/users`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al agregar usuario");
-  return res.json();
-}
-
-export async function updateUser(token: string, id: string, data: Partial<User>): Promise<User> {
-  const res = await fetch(`${API_URL}/users/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al actualizar usuario");
-  return res.json();
-}
-
-export async function disableUser(token: string, id: string): Promise<User> {
-  const res = await fetch(`${API_URL}/users/${id}/disable`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) throw new Error("Error al deshabilitar usuario");
-  return res.json();
-}
-
 // Doctor Functions
 export async function fetchDoctors(): Promise<Doctor[]> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors`, {
-    credentials: "include",
+    credentials: 'include',
     headers: {
-      "X-CSRF-Token": csrfToken,
+      'X-CSRF-Token': csrfToken,
     },
   });
-  if (!res.ok) throw new Error("No autorizado");
+  if (!res.ok) throw new Error('No autorizado');
   return res.json();
 }
 
-export async function createDoctor(data: Omit<Doctor, "id">): Promise<Doctor> {
+export async function createDoctor(data: Omit<Doctor, 'id'>): Promise<Doctor> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(data),
   });
@@ -241,11 +272,11 @@ export async function createDoctor(data: Omit<Doctor, "id">): Promise<Doctor> {
 export async function updateDoctor(id: string, data: Partial<Doctor>): Promise<Doctor> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors/${id}`, {
-    method: "PATCH",
-    credentials: "include",
+    method: 'PATCH',
+    credentials: 'include',
     headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(data),
   });
@@ -256,10 +287,10 @@ export async function updateDoctor(id: string, data: Partial<Doctor>): Promise<D
 export async function deleteDoctor(id: string): Promise<void> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors/${id}`, {
-    method: "DELETE",
-    credentials: "include",
+    method: 'DELETE',
+    credentials: 'include',
     headers: {
-      "X-CSRF-Token": csrfToken,
+      'X-CSRF-Token': csrfToken,
     },
   });
   if (!res.ok) throw new Error(await res.text());
@@ -274,18 +305,18 @@ export async function deleteDoctor(id: string): Promise<void> {
 // Login (sin cambios, para no impactar el flujo actual)
 export async function login(email: string, password: string): Promise<any> {
   const res = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
-    credentials: "include",
+    credentials: 'include',
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || "Credenciales incorrectas");
+    throw new Error(errorData.message || 'Credenciales incorrectas');
   }
   const data = await res.json();
   if (!data.user) {
-    throw new Error("Credenciales incorrectas");
+    throw new Error('Credenciales incorrectas');
   }
   return data.user;
 }
@@ -294,10 +325,10 @@ export async function login(email: string, password: string): Promise<any> {
 export async function logout(): Promise<void> {
   const csrfToken = getCsrfTokenFromCookie();
   await fetch(`${API_URL}/auth/logout`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
-      "X-CSRF-Token": csrfToken,
+      'X-CSRF-Token': csrfToken,
     },
   });
 }
@@ -306,10 +337,10 @@ export async function logout(): Promise<void> {
 export async function validateSession(): Promise<any> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
-      "X-CSRF-Token": csrfToken,
+      'X-CSRF-Token': csrfToken,
     },
   });
   if (!res.ok) return null;

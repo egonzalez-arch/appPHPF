@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDto, UpdateUserDto } from './dto';
 
@@ -8,9 +8,36 @@ import { CreateUserDto, UpdateUserDto } from './dto';
 export class UserService {
   constructor(@InjectRepository(User) private repo: Repository<User>) {}
 
-  findAll() { return this.repo.find(); }
-  findOne(id: string) { return this.repo.findOne({ where: { id } }); }
-  create(dto: CreateUserDto) { return this.repo.save(dto); }
-  update(id: string, dto: UpdateUserDto) { return this.repo.update(id, dto); }
-  remove(id: string) { return this.repo.delete(id); }
+  findAll() {
+    return this.repo.find();
+  }
+  findOne(id: string) {
+    return this.repo.findOne({ where: { id } });
+  }
+  create(dto: CreateUserDto) {
+    return this.repo.save(dto);
+  }
+  update(id: string, dto: UpdateUserDto) {
+    return this.repo.update(id, dto);
+  }
+  remove(id: string) {
+    return this.repo.delete(id);
+  }
+
+  // Nuevo: deshabilitar (cambiar a INACTIVE) e idempotente
+  async disable(id: string): Promise<Partial<User>> {
+    const user = await this.repo.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.status !== UserStatus.INACTIVE) {
+      await this.repo.update(id, { status: UserStatus.INACTIVE }); // usar enum
+      user.status = UserStatus.INACTIVE;
+    }
+
+    // Sanitizar: no devolver passwordHash
+    const { passwordHash, ...safe } = user as any;
+    return safe;
+  }
 }
