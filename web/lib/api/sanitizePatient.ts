@@ -5,7 +5,6 @@ export interface RawPatientPayload {
   bloodType?: string;
   allergies?: string[] | null;
   emergencyContact?: Record<string, any>;
-  // Campos no permitidos:
   phone?: any;
   firstName?: any;
   lastName?: any;
@@ -26,6 +25,10 @@ const ALLOWED: (keyof RawPatientPayload)[] = [
 ];
 
 export function sanitizePatientPayload(input: RawPatientPayload) {
+  delete (input as any).phone;
+  delete (input as any).user;
+  delete (input as any).patient;
+  delete (input as any).password;
   const out: any = {};
   for (const key of ALLOWED) {
     if (input[key] !== undefined) out[key] = input[key];
@@ -35,12 +38,7 @@ export function sanitizePatientPayload(input: RawPatientPayload) {
       (k) => !(ALLOWED as string[]).includes(k),
     );
     if (extraneous.length) {
-      console.warn(
-        '[sanitizePatientPayload] Campos ignorados:',
-        extraneous,
-        'Payload original:',
-        input,
-      );
+      console.warn('[sanitizePatientPayload] Ignorados:', extraneous);
     }
   }
   return out;

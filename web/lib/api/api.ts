@@ -1,12 +1,17 @@
 import { QueryClient } from '@tanstack/react-query';
 import { buildPatientUpdatePayload } from './patientPayload';
+import { sanitizePatientPayload } from './sanitizePatient';
+import { CreatePatientRequest } from './patient.types';
+
+/* NUEVO: import opcional para re-exportar usuarios */
+import { fetchUsers as internalFetchUsers } from './api.users';
 
 export const client = new QueryClient();
-
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export type StatusString = 'ACTIVE' | 'INACTIVE' | 'active' | 'inactive';
 
+/* ====================== Tipos base ====================== */
 export interface User {
   id: string;
   firstname?: string;
@@ -28,71 +33,17 @@ export interface EmergencyContact {
   [k: string]: any;
 }
 
-function mapEmergencyContact(ecRaw: any): EmergencyContact | null {
-  if (!ecRaw || typeof ecRaw !== 'object' || Array.isArray(ecRaw)) return null;
-
-  // Normalización de posibles variantes en español / diferentes estilos
-  const name =
-    ecRaw.name ??
-    ecRaw.Name ??
-    ecRaw.nombre ??
-    ecRaw.Nombre ??
-    ecRaw.fullName ??
-    ecRaw.contactName;
-
-  const relation =
-    ecRaw.relation ??
-    ecRaw.Relation ??
-    ecRaw.relacion ??
-    ecRaw.Relación ??
-    ecRaw.relationship ??
-    ecRaw.parentesco;
-
-  const phone =
-    ecRaw.phone ??
-    ecRaw.telefono ??
-    ecRaw.tel ??
-    ecRaw.Telefono ??
-    ecRaw.mobile ??
-    ecRaw.celular ??
-    ecRaw.cel;
-
-  // Si no encontró las claves típicas pero sí hay otras, igual devolvemos algo
-  if (!name && !relation && !phone) {
-    // Devuelve el objeto original para que el frontend pueda mostrarlo serializado
-    return {
-      // lo dejamos “raw” para fallback
-      // puedes añadir un campo _raw si quieres
-      ...ecRaw,
-    };
-  }
-
-  return { name, relation, phone, ...ecRaw };
-}
-
-export function normalizePatient(p: any): Patient {
-  const ecParsed = safeParseJSON<any>(p.emergencyContact);
-  const ec = mapEmergencyContact(ecParsed);
-
-  return {
-    ...p,
-    emergencyContact: ec,
-    allergies: normalizeAllergies(p.allergies),
-    birthDate: normalizeBirthDate(p.birthDate),
-  };
-}
-
 export interface Patient {
   id: string;
   bloodType?: string;
   age?: number;
   firstName?: string;
   lastName?: string;
-  birthDate?: string;            // normalizado a YYYY-MM-DD
+  birthDate?: string;
   PatientSex?: string;
   phone?: string;
   emergencyContact?: EmergencyContact | null;
-  allergies?: string[] | null;   // normalizamos a array de strings o null
+  allergies?: string[] | null;
   user?: User | null;
   nombre?: string;
   apellido?: string;
@@ -108,16 +59,26 @@ export interface Doctor {
   [key: string]: unknown;
 }
 
+/* ============= Helpers genéricos / CSRF ============= */
 function getCsrfTokenFromCookie(): string {
   if (typeof document === 'undefined') return '';
   return (
     document.cookie
       .split('; ')
-      .find((row) => row.startsWith('csrf_token='))
-      ?.split('=')[1] || ''
+      .find((row) => row.startsWith('csrf_token='))?.split('=')[1] || ''
   );
 }
 
+async function parseOrText(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text || 'Error';
+  }
+}
+
+/* ============= Estado usuario (compat) ============= */
 export function isActiveFromUser(u?: User | null): boolean {
   if (!u) return false;
   const s = u.status;
@@ -132,23 +93,7 @@ export function toStatusString(active: boolean): StatusString {
   return active ? 'ACTIVE' : 'INACTIVE';
 }
 
-function buildStatusPayload(active: boolean, mode: 'string' | 'boolean') {
-  return mode === 'string'
-    ? { status: toStatusString(active) }
-    : { isActive: active };
-}
-
-async function parseOrText(res: Response) {
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text || 'Error';
-  }
-}
-
-/* ---------------- Normalización de Patient ---------------- */
-
+/* ============= Normalización Patient ============= */
 function safeParseJSON<T = any>(value: unknown): T | null {
   if (value == null) return null;
   if (typeof value === 'object') return value as T;
@@ -170,7 +115,6 @@ function normalizeAllergies(raw: any): string[] | null {
   if (typeof raw === 'string') {
     const parsed = safeParseJSON<any>(raw);
     if (Array.isArray(parsed)) return parsed.map(String);
-    // fallback: dividir por coma
     return raw
       .split(',')
       .map((s) => s.trim())
@@ -182,7 +126,6 @@ function normalizeAllergies(raw: any): string[] | null {
 function normalizeBirthDate(birthDate: any): string | undefined {
   if (!birthDate) return undefined;
   if (typeof birthDate === 'string') {
-    // Si ya está en formato YYYY-MM-DD o ISO, recortar
     if (birthDate.length >= 10) return birthDate.substring(0, 10);
     return birthDate;
   }
@@ -192,27 +135,62 @@ function normalizeBirthDate(birthDate: any): string | undefined {
   return undefined;
 }
 
+function mapEmergencyContact(ecRaw: any): EmergencyContact | null {
+  if (!ecRaw || typeof ecRaw !== 'object' || Array.isArray(ecRaw)) return null;
+  const name =
+    ecRaw.name ??
+    ecRaw.Name ??
+    ecRaw.nombre ??
+    ecRaw.Nombre ??
+    ecRaw.fullName ??
+    ecRaw.contactName;
+  const relation =
+    ecRaw.relation ??
+    ecRaw.Relation ??
+    ecRaw.relacion ??
+    ecRaw.Relación ??
+    ecRaw.relationship ??
+    ecRaw.parentesco;
+  const phone =
+    ecRaw.phone ??
+    ecRaw.telefono ??
+    ecRaw.tel ??
+    ecRaw.Telefono ??
+    ecRaw.mobile ??
+    ecRaw.celular ??
+    ecRaw.cel;
 
+  if (!name && !relation && !phone) return { ...ecRaw };
+  return { name, relation, phone, ...ecRaw };
+}
+
+export function normalizePatient(p: any): Patient {
+  const ecParsed = safeParseJSON<any>(p.emergencyContact);
+  const ec = mapEmergencyContact(ecParsed);
+  return {
+    ...p,
+    emergencyContact: ec,
+    allergies: normalizeAllergies(p.allergies),
+    birthDate: normalizeBirthDate(p.birthDate),
+  };
+}
 
 function normalizePatients(list: any[]): Patient[] {
   return list.map(normalizePatient);
 }
 
-/* ---------------- User status helpers (cookies + CSRF) ---------------- */
-
+/* ============= User status endpoints (compat) ============= */
 export async function disableUser(id: string): Promise<User> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/users/${id}/disable`, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   const data = await parseOrText(res);
   if (!res.ok) {
     throw new Error(
-      typeof data === 'string' ? data : data?.message || 'Error al deshabilitar usuario'
+      typeof data === 'string' ? data : data?.message || 'Error al deshabilitar usuario',
     );
   }
   return data as User;
@@ -232,7 +210,7 @@ export async function enableUser(id: string): Promise<User> {
   const data = await parseOrText(res);
   if (!res.ok) {
     throw new Error(
-      typeof data === 'string' ? data : data?.message || 'Error al habilitar usuario'
+      typeof data === 'string' ? data : data?.message || 'Error al habilitar usuario',
     );
   }
   return data as User;
@@ -242,16 +220,13 @@ export async function changeUserActive(userId: string, active: boolean): Promise
   return active ? enableUser(userId) : disableUser(userId);
 }
 
-/* ---------------- Patients ---------------- */
-
+/* ============= Patients ============= */
 export async function fetchPatients(): Promise<Patient[]> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
     method: 'GET',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   if (!res.ok) {
     const msg = await res.text().catch(() => '');
@@ -261,22 +236,17 @@ export async function fetchPatients(): Promise<Patient[]> {
   return Array.isArray(data) ? normalizePatients(data) : [];
 }
 
-export async function getSession(): Promise<{ user: any | null; accessToken?: string }> {
-  const csrfToken = getCsrfTokenFromCookie();
-  const res = await fetch(`${API_URL}/auth/validate-session`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
-  });
-  if (!res.ok) return { user: null };
-  const data = await res.json();
-  return { user: data.user || null, accessToken: data.accessToken };
+/* COMPAT: wrapper para código existente que esperaba fetchPatientsWithSession */
+export async function fetchPatientsWithSession(): Promise<Patient[]> {
+  return fetchPatients();
 }
 
-export async function createPatient(data: Omit<Patient, 'id'>): Promise<Patient> {
+export async function createPatient(data: CreatePatientRequest): Promise<Patient> {
   const csrfToken = getCsrfTokenFromCookie();
+  const sanitized = sanitizePatientPayload(data);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[api] createPatient sanitized payload:', sanitized);
+  }
   const res = await fetch(`${API_URL}/patients`, {
     method: 'POST',
     credentials: 'include',
@@ -284,10 +254,20 @@ export async function createPatient(data: Omit<Patient, 'id'>): Promise<Patient>
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(sanitized),
   });
-  if (!res.ok) throw new Error(await res.text());
-  const created = await res.json();
+  const txt = await res.text();
+  if (!res.ok) {
+    let parsed: any = txt;
+    try { parsed = JSON.parse(txt); } catch {}
+    throw new Error(
+      typeof parsed === 'string' ? parsed : parsed?.message || 'Error al crear paciente',
+    );
+  }
+  let created: any;
+  try { created = JSON.parse(txt); } catch {
+    throw new Error('Respuesta inválida (crear paciente)');
+  }
   return normalizePatient(created);
 }
 
@@ -303,11 +283,14 @@ export async function updatePatient(id: string, data: any): Promise<Patient> {
     },
     body: JSON.stringify(sanitized),
   });
+  const txt = await res.text();
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt);
+    throw new Error(txt || 'Error al actualizar paciente');
   }
-  const updated = await res.json();
+  let updated: any;
+  try { updated = JSON.parse(txt); } catch {
+    throw new Error('Respuesta inválida (actualizar paciente)');
+  }
   return normalizePatient(updated);
 }
 
@@ -316,28 +299,21 @@ export async function deletePatient(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/patients/${id}`, {
     method: 'DELETE',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return;
   try {
     await res.json();
-  } catch {
-    // ignorar
-  }
+  } catch { /* ignore */ }
 }
 
-/* ---------------- Doctors ---------------- */
-
+/* ============= Doctors ============= */
 export async function fetchDoctors(): Promise<Doctor[]> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors`, {
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   if (!res.ok) throw new Error('No autorizado');
   return res.json();
@@ -348,10 +324,7 @@ export async function createDoctor(data: Omit<Doctor, 'id'>): Promise<Doctor> {
   const res = await fetch(`${API_URL}/doctors`, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -363,10 +336,7 @@ export async function updateDoctor(id: string, data: Partial<Doctor>): Promise<D
   const res = await fetch(`${API_URL}/doctors/${id}`, {
     method: 'PATCH',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -378,21 +348,16 @@ export async function deleteDoctor(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/doctors/${id}`, {
     method: 'DELETE',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return;
   try {
     await res.json();
-  } catch {
-    // ignorar
-  }
+  } catch { /* ignore */ }
 }
 
-/* ---------------- Auth ---------------- */
-
+/* ============= Auth ============= */
 export async function login(email: string, password: string): Promise<any> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
@@ -414,9 +379,7 @@ export async function logout(): Promise<void> {
   await fetch(`${API_URL}/auth/logout`, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
 }
 
@@ -425,11 +388,12 @@ export async function validateSession(): Promise<any> {
   const res = await fetch(`${API_URL}/auth/validate-session`, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+    headers: { 'X-CSRF-Token': csrfToken },
   });
   if (!res.ok) return null;
   const data = await res.json();
   return data.user || null;
 }
+
+/* ============= Re-export usuarios (compat) ============= */
+export const fetchUsers = internalFetchUsers;

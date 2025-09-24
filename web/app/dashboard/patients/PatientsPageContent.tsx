@@ -1,29 +1,19 @@
-// (Esta es tu página, elimino la palabra suelta "focus" y mantengo logs)
+'use client';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchPatients,
-  fetchPatientsWithSession,
-  changeUserActive,
   updatePatient,
-  Patient,
+  changeUserActive,
   isActiveFromUser,
+  Patient,
   User,
 } from '@/lib/api/api';
 import { createPatientWithUser } from '@/lib/api/createPatientWithUser';
-import PatientForm from '@/components/forms/PatientForm';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-
-function formatDateForInput(value?: string | Date | null): string {
-  if (!value) return '';
-  try {
-    const d = typeof value === 'string' ? new Date(value) : value;
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().substring(0, 10);
-  } catch {
-    return '';
-  }
-}
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import PatientForm from '@/components/forms/PatientForm';
 
 function buildEmergencyContactText(ec: any): string {
   if (!ec) return '-';
@@ -39,360 +29,388 @@ function buildEmergencyContactText(ec: any): string {
 }
 
 export default function PatientsPageContent() {
-  const [editPatient, setEditPatient] = useState<Patient | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const { user: sessionUser, accessToken } = useAuth();
+  const { user: sessionUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const queryFn = useMemo(
-    () => (accessToken ? () => fetchPatientsWithSession() : () => fetchPatients()),
-    [accessToken],
-  );
+  const [showForm, setShowForm] = useState(false);
+  const [editPatient, setEditPatient] = useState<Patient | null>(null);
 
-  const { data: patients, refetch, isLoading, isError, error } = useQuery({
+  // Búsqueda
+  const [rawSearch, setRawSearch] = useState('');
+  const debounced = useDebouncedValue(rawSearch, 300);
+  const search = debounced.trim().toLowerCase();
+
+  const {
+    data: patients,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ['patients'],
     enabled: !!sessionUser,
-    queryFn,
-    retry: 1,
+    queryFn: fetchPatients,
   });
 
+  // Crear (usuario + paciente)
   const createCompositeMutation = useMutation({
     mutationFn: createPatientWithUser,
-    onSuccess: (newPatient) => {
+    onSuccess: (p) => {
       queryClient.setQueryData<Patient[]>(['patients'], (old) =>
-        old ? [...old, newPatient] : [newPatient],
+        old ? [...old, p] : [p],
       );
       setShowForm(false);
       setEditPatient(null);
     },
   });
 
+  // Actualizar solo paciente
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Patient> }) =>
-      updatePatient(id, data),
+    mutationFn: async (args: { id: string; data: Partial<Patient> }) =>
+      updatePatient(args.id, args.data),
     onSuccess: (updated) => {
       queryClient.setQueryData<Patient[]>(['patients'], (old) =>
-        old ? old.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)) : [updated],
+        old
+          ? old.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+          : [updated],
       );
       setShowForm(false);
       setEditPatient(null);
     },
   });
 
+  // Estado usuario (activo/inactivo)
   const statusMutation = useMutation({
     mutationFn: async ({ userId, active }: { userId: string; active: boolean }) =>
       changeUserActive(userId, active),
-    onSuccess: () => refetch(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patients'] }),
   });
 
-  function handleEdit(patient: Patient) {
-    const prepared: Patient = {
-      ...patient,
-      birthDate: formatDateForInput(patient.birthDate as any) as any,
-    };
-    setEditPatient(prepared);
+  function getFirstName(p: Patient) {
+    return p.user?.firstName || p.firstName || (p as any).nombre || '-';
+  }
+  function getLastName(p: Patient) {
+    return p.user?.lastName || p.lastName || (p as any).apellido || '-';
+  }
+
+  function handleEdit(p: Patient) {
+    setEditPatient({
+      ...p,
+      birthDate: p.birthDate || '',
+    } as any);
     setShowForm(true);
   }
 
-  function handleToggleStatus(patient: Patient) {
-    const active = isActiveFromUser(patient.user as User);
-    const userId = patient.user?.id;
-    if (!userId) {
-      console.warn('Paciente sin usuario asociado.');
-      return;
-    }
+  function handleToggle(p: Patient) {
+    const active = isActiveFromUser(p.user as User);
+    const userId = p.user?.id;
+    if (!userId) return;
     statusMutation.mutate({ userId, active: !active });
   }
 
-  function getFirstName(p: Patient) {
-    return (p.user?.firstName as string) || p.firstName || (p as any).nombre || '-';
+  function buildIndex(p: Patient): string {
+    const ec = buildEmergencyContactText(p.emergencyContact);
+    return [
+      getFirstName(p),
+      getLastName(p),
+      p.user?.email,
+      p.user?.phone,
+      p.PatientSex,
+      p.bloodType,
+      Array.isArray(p.allergies) ? p.allergies.join(' ') : '',
+      ec,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
   }
 
-  function getLastName(p: Patient) {
-    return (p.user?.lastName as string) || p.lastName || (p as any).apellido || '-';
-  }
+  const filtered = useMemo(() => {
+    if (!patients) return [];
+    if (!search) return patients;
+    return patients.filter((p) => buildIndex(p).includes(search));
+  }, [patients, search]);
 
-  function StatusSwitch({ patient }: { patient: Patient }) {
-    const checked = isActiveFromUser(patient.user as User);
-    return (
-      <label className="flex items-center cursor-pointer">
-        <input
-          type="checkbox"
-          className="sr-only"
-          checked={checked}
-          disabled={statusMutation.isPending}
-          onChange={() => handleToggleStatus(patient)}
-        />
-        <span
-          className={`w-10 h-6 flex items-center rounded-full px-1 transition-colors ${
-            checked ? 'bg-green-500' : 'bg-gray-300'
-          }`}
-        >
-          <span
-            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-              checked ? 'translate-x-4' : ''
-            }`}
-          />
-        </span>
-        <span
-          className={`ml-2 text-sm font-semibold ${
-            checked ? 'text-green-600' : 'text-gray-500'
-          }`}
-        >
-          {checked ? 'Activo' : 'Inactivo'}
-        </span>
-      </label>
-    );
-  }
-
-  const isSubmitting =
+  const submitting =
     createCompositeMutation.isPending ||
     updateMutation.isPending ||
     statusMutation.isPending;
 
   return (
-    <div className="flex min-h-screen">
-      <main className="flex-1 px-2 sm:px-6 lg:px-10 py-6 min-w-0">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-          <h1 className="text-2xl font-bold">Pacientes</h1>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Pacientes</h1>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:items-center">
+          <div className="relative flex-1 md:min-w-[280px]">
+            <input
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              placeholder="Buscar (nombre, email, sangre, contacto...)"
+              className="w-full border rounded px-3 py-2 pr-9 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+            {rawSearch && (
+              <button
+                type="button"
+                onClick={() => setRawSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                aria-label="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+            {rawSearch && rawSearch !== debounced && (
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">
+                Filtrando...
+              </span>
+            )}
+          </div>
           <button
             className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 shadow"
+            disabled={submitting}
             onClick={() => {
               setEditPatient(null);
               setShowForm(true);
             }}
-            aria-label="Crear nuevo paciente"
-            disabled={isSubmitting}
           >
             ➕ Nuevo Paciente
           </button>
         </div>
+      </div>
 
-        {!sessionUser && (
-          <div className="py-8 text-center text-gray-500">
-            Inicia sesión para ver pacientes.
-          </div>
-        )}
-        {isLoading && (
-          <div className="py-8 text-center text-gray-500">Cargando pacientes...</div>
-        )}
-        {isError && (
-          <div className="py-8 text-center text-red-600">
-            Error: {String(error)}
-          </div>
-        )}
+      {!sessionUser && <div>Inicia sesión para ver pacientes.</div>}
+      {isLoading && <div>Cargando pacientes...</div>}
+      {isError && <div className="text-red-600">Error: {String(error)}</div>}
 
-        {createCompositeMutation.isError && (
-          <div className="text-red-600 mb-2">
-            Error al crear paciente: {(createCompositeMutation.error as any)?.message || ''}
-          </div>
-        )}
-        {updateMutation.isError && (
-          <div className="text-red-600 mb-2">
-            Error al actualizar paciente: {(updateMutation.error as any)?.message || ''}
-          </div>
-        )}
-        {statusMutation.isError && (
-          <div className="text-red-600 mb-2">
-            Error al cambiar estado del paciente: {String((statusMutation.error as any)?.message || '')}
-          </div>
-        )}
-        {createCompositeMutation.isSuccess && (
-          <div className="text-green-600 mb-2">Paciente creado correctamente</div>
-        )}
-        {updateMutation.isSuccess && (
-          <div className="text-green-600 mb-2">Paciente actualizado correctamente</div>
-        )}
-        {statusMutation.isSuccess && (
-          <div className="text-green-600 mb-2">
-            Estado de paciente actualizado correctamente
-          </div>
-        )}
-
-        {showForm && (
-          <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded shadow-lg max-w-2xl w-full">
-              <PatientForm
-                mode={editPatient ? 'edit' : 'create'}
-                initialValues={
-                  editPatient
-                    ? {
-                        birthDate: editPatient.birthDate
-                          ? formatDateForInput(editPatient.birthDate as any)
-                          : '',
-                        PatientSex: editPatient.PatientSex,
-                        bloodType: editPatient.bloodType,
-                        allergies: editPatient.allergies || [],
-                        emergencyContact: editPatient.emergencyContact || undefined,
-                      }
-                    : undefined
-                }
-                submitting={isSubmitting}
-                onSubmit={(data: any) => {
-                  if (editPatient) {
-                    updateMutation.mutate({ id: editPatient.id, data });
-                  } else {
-                    if (data.user && data.patient) {
-                      if (process.env.NODE_ENV !== 'production') {
-                        console.log('[PatientsPage] composite create payload (raw):', data);
-                      }
-                      createCompositeMutation.mutate(data);
-                    } else {
-                      console.error(
-                        '[PatientsPage] Formulario no retornó estructura compuesta {user, patient}',
-                        data,
-                      );
-                      alert('Error interno: el formulario no envió datos de usuario y paciente.');
-                    }
-                  }
-                }}
-                onCancel={() => {
-                  setShowForm(false);
-                  setEditPatient(null);
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="hidden md:block bg-white rounded shadow border mt-2 w-full overflow-x-auto">
-          <table className="min-w-max border w-full">
-            <thead>
-              <tr className="bg-teal-100">
-                <th className="px-4 py-2 border-b">Nombre</th>
-                <th className="px-4 py-2 border-b">Apellido</th>
-                <th className="px-4 py-2 border-b">Fecha Nac.</th>
-                <th className="px-4 py-2 border-b">Sexo</th>
-                <th className="px-4 py-2 border-b">Teléfono</th>
-                <th className="px-4 py-2 border-b">Tipo de Sangre</th>
-                <th className="px-4 py-2 border-b">Email</th>
-                <th className="px-4 py-2 border-b">Alergias</th>
-                <th className="px-4 py-2 border-b">Contacto Emerg.</th>
-                <th className="px-4 py-2 border-b">Estado</th>
-                <th className="px-4 py-2 border-b">Fecha registro</th>
-                <th className="px-4 py-2 border-b">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patients?.length === 0 && (
-                <tr>
-                  <td colSpan={12} className="py-8 text-center text-gray-500">
-                    No hay pacientes registrados.
-                  </td>
-                </tr>
-              )}
-              {patients?.map((p) => {
-                const ecText = buildEmergencyContactText(p.emergencyContact);
-                return (
-                  <tr key={p.id} className="hover:bg-teal-50">
-                    <td className="px-4 py-2">{getFirstName(p)}</td>
-                    <td className="px-4 py-2">{getLastName(p)}</td>
-                    <td className="px-4 py-2">
-                      {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2">{p.PatientSex || '-'}</td>
-                    <td className="px-4 py-2">{p.user?.phone || '-'}</td>
-                    <td className="px-4 py-2">{p.bloodType || '-'}</td>
-                    <td className="px-4 py-2">{p.user?.email || '-'}</td>
-                    <td className="px-4 py-2">
-                      {Array.isArray(p.allergies)
-                        ? p.allergies.join(', ')
-                        : p.allergies
-                        ? String(p.allergies)
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-2">{ecText}</td>
-                    <td className="px-4 py-2">
-                      <StatusSwitch patient={p} />
-                    </td>
-                    <td className="px-4 py-2">
-                      {p.user?.createdAt
-                        ? new Date(p.user.createdAt as string).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-2 flex gap-2">
-                      <button
-                        className="text-teal-600 hover:underline"
-                        onClick={() => handleEdit(p)}
-                        disabled={isSubmitting}
-                        aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
-                      >
-                        Editar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {createCompositeMutation.isError && (
+        <div className="text-red-600">
+          Error al crear: {(createCompositeMutation.error as any)?.message}
         </div>
+      )}
+      {updateMutation.isError && (
+        <div className="text-red-600">
+          Error al actualizar: {(updateMutation.error as any)?.message}
+        </div>
+      )}
+      {statusMutation.isError && (
+        <div className="text-red-600">
+          Error al cambiar estado: {(statusMutation.error as any)?.message}
+        </div>
+      )}
 
-        <div className="md:hidden flex flex-col gap-4 mt-2">
-          {patients?.length === 0 && (
-            <div className="py-8 text-center text-gray-500">
-              No hay pacientes registrados.
-            </div>
-          )}
-          {patients?.map((p) => {
-            const ecText = buildEmergencyContactText(p.emergencyContact);
-            return (
-              <div key={p.id} className="rounded border shadow p-4 bg-white">
-                <div className="font-bold text-lg mb-2">
-                  {getFirstName(p)} {getLastName(p)}
-                </div>
-                <div className="text-sm text-gray-700 space-y-1">
-                  <div>
-                    <span className="font-medium">Fecha Nac.:</span>{' '}
-                    {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
-                  </div>
-                  <div>
-                    <span className="font-medium">Sexo:</span> {p.PatientSex || '-'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Teléfono:</span> {p.user?.phone || '-'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Tipo Sangre:</span> {p.bloodType || '-'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Email:</span> {p.user?.email || '-'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Alergias:</span>{' '}
+      <div className="overflow-x-auto bg-white rounded shadow border">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-teal-100">
+              <th className="px-3 py-2">Nombre</th>
+              <th className="px-3 py-2">Apellido</th>
+              <th className="px-3 py-2">Fecha Nac.</th>
+              <th className="px-3 py-2">Sexo</th>
+              <th className="px-3 py-2">Teléfono</th>
+              <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">Tipo Sangre</th>
+              <th className="px-3 py-2">Alergias</th>
+              <th className="px-3 py-2">Contacto Emerg.</th>
+              <th className="px-3 py-2">Estado</th>
+              <th className="px-3 py-2">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={11} className="text-center py-6 text-gray-500">
+                  {search
+                    ? 'No se encontraron pacientes con ese criterio.'
+                    : 'No hay pacientes.'}
+                </td>
+              </tr>
+            )}
+            {filtered.map((p) => {
+              const ec = buildEmergencyContactText(p.emergencyContact);
+              const active = isActiveFromUser(p.user as User);
+              return (
+                <tr key={p.id} className="hover:bg-teal-50">
+                  <td className="px-3 py-2">{getFirstName(p)}</td>
+                  <td className="px-3 py-2">{getLastName(p)}</td>
+                  <td className="px-3 py-2">
+                    {p.birthDate
+                      ? new Date(p.birthDate).toLocaleDateString()
+                      : '-'}
+                  </td>
+                  <td className="px-3 py-2">{p.PatientSex || '-'}</td>
+                  <td className="px-3 py-2">{p.user?.phone || '-'}</td>
+                  <td className="px-3 py-2">{p.user?.email || '-'}</td>
+                  <td className="px-3 py-2">{p.bloodType || '-'}</td>
+                  <td className="px-3 py-2">
                     {Array.isArray(p.allergies)
                       ? p.allergies.join(', ')
                       : p.allergies
                       ? String(p.allergies)
                       : '-'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Contacto Emerg.:</span> {ecText}
-                  </div>
-                  <div className="mt-2">
-                    <StatusSwitch patient={p} />
-                  </div>
-                  <div>
-                    <span className="font-medium">Fecha registro:</span>{' '}
-                    {p.user?.createdAt
-                      ? new Date(p.user.createdAt as string).toLocaleDateString()
-                      : '-'}
-                  </div>
+                  </td>
+                  <td className="px-3 py-2">{ec}</td>
+                  <td className="px-3 py-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={active}
+                        disabled={statusMutation.isPending}
+                        onChange={() => handleToggle(p)}
+                      />
+                      <span
+                        className={`w-10 h-5 flex items-center rounded-full px-1 transition-colors ${
+                          active ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform ${
+                            active ? 'translate-x-4' : ''
+                          }`}
+                        />
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      className="text-teal-600 hover:underline"
+                      onClick={() => handleEdit(p)}
+                      disabled={submitting}
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Vista móvil */}
+      <div className="md:hidden flex flex-col gap-4">
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            {search ? 'No se encontraron pacientes.' : 'No hay pacientes.'}
+          </div>
+        )}
+        {filtered.map((p) => {
+          const ec = buildEmergencyContactText(p.emergencyContact);
+          const active = isActiveFromUser(p.user as User);
+          return (
+            <div key={p.id} className="border rounded shadow p-4 bg-white">
+              <div className="font-bold text-lg">
+                {getFirstName(p)} {getLastName(p)}
+              </div>
+              <div className="text-sm text-gray-700 space-y-1 mt-2">
+                <div>
+                  <span className="font-medium">Fecha Nac.:</span>{' '}
+                  {p.birthDate
+                    ? new Date(p.birthDate).toLocaleDateString()
+                    : '-'}
                 </div>
-                <div className="flex gap-4 mt-3">
-                  <button
-                    className="text-teal-600 hover:underline"
-                    onClick={() => handleEdit(p)}
-                    disabled={isSubmitting}
-                    aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
-                  >
-                    Editar
-                  </button>
+                <div>
+                  <span className="font-medium">Sexo:</span>{' '}
+                  {p.PatientSex || '-'}
+                </div>
+                <div>
+                  <span className="font-medium">Tel:</span>{' '}
+                  {p.user?.phone || '-'}
+                </div>
+                <div>
+                  <span className="font-medium">Email:</span>{' '}
+                  {p.user?.email || '-'}
+                </div>
+                <div>
+                  <span className="font-medium">Sangre:</span>{' '}
+                  {p.bloodType || '-'}
+                </div>
+                <div>
+                  <span className="font-medium">Alergias:</span>{' '}
+                  {Array.isArray(p.allergies)
+                    ? p.allergies.join(', ')
+                    : p.allergies
+                    ? String(p.allergies)
+                    : '-'}
+                </div>
+                <div>
+                  <span className="font-medium">Contacto:</span> {ec}
+                </div>
+                <div>
+                  <span className="font-medium">Estado:</span>{' '}
+                  {active ? 'Activo' : 'Inactivo'}
                 </div>
               </div>
-            );
-          })}
+              <div className="flex gap-4 mt-3 items-center">
+                <button
+                  className="text-teal-600 hover:underline"
+                  onClick={() => handleEdit(p)}
+                  disabled={submitting}
+                >
+                  Editar
+                </button>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={active}
+                    disabled={statusMutation.isPending}
+                    onChange={() => handleToggle(p)}
+                  />
+                  <span
+                    className={`w-10 h-5 flex items-center rounded-full px-1 transition-colors ${
+                      active ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform ${
+                        active ? 'translate-x-4' : ''
+                      }`}
+                    />
+                  </span>
+                </label>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow max-w-2xl w-full">
+            <PatientForm
+              mode={editPatient ? 'edit' : 'create'}
+              initialValues={
+                editPatient
+                  ? {
+                      birthDate: editPatient.birthDate,
+                      PatientSex: editPatient.PatientSex,
+                      bloodType: editPatient.bloodType,
+                      allergies: editPatient.allergies || [],
+                      emergencyContact: editPatient.emergencyContact,
+                    }
+                  : undefined
+              }
+              submitting={submitting}
+              onSubmit={(data: any) => {
+                if (editPatient) {
+                  updateMutation.mutate({ id: editPatient.id, data });
+                } else {
+                  // data.user & data.patient
+                  if (data?.user && data?.patient) {
+                    createCompositeMutation.mutate(data);
+                  } else {
+                    alert('Error: payload inválido del formulario.');
+                  }
+                }
+              }}
+              onCancel={() => {
+                setShowForm(false);
+                setEditPatient(null);
+              }}
+            />
+          </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }
