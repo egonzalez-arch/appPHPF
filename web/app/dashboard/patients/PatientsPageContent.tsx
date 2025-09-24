@@ -1,14 +1,15 @@
+// (Esta es tu página, elimino la palabra suelta "focus" y mantengo logs)
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchPatients,
   fetchPatientsWithSession,
-  createPatient,
   changeUserActive,
   updatePatient,
   Patient,
   isActiveFromUser,
   User,
 } from '@/lib/api/api';
+import { createPatientWithUser } from '@/lib/api/createPatientWithUser';
 import PatientForm from '@/components/forms/PatientForm';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -26,6 +27,10 @@ function formatDateForInput(value?: string | Date | null): string {
 
 function buildEmergencyContactText(ec: any): string {
   if (!ec) return '-';
+  if (typeof ec === 'string') {
+    try { ec = JSON.parse(ec); } catch { return '-'; }
+  }
+  if (typeof ec !== 'object' || Array.isArray(ec)) return '-';
   const parts: string[] = [];
   if (ec.name) parts.push(ec.name);
   if (ec.relation) parts.push(`(${ec.relation})`);
@@ -44,21 +49,15 @@ export default function PatientsPageContent() {
     [accessToken],
   );
 
-  const {
-    data: patients,
-    refetch,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
+  const { data: patients, refetch, isLoading, isError, error } = useQuery({
     queryKey: ['patients'],
     enabled: !!sessionUser,
     queryFn,
     retry: 1,
   });
 
-  const createMutation = useMutation({
-    mutationFn: createPatient,
+  const createCompositeMutation = useMutation({
+    mutationFn: createPatientWithUser,
     onSuccess: (newPatient) => {
       queryClient.setQueryData<Patient[]>(['patients'], (old) =>
         old ? [...old, newPatient] : [newPatient],
@@ -83,12 +82,7 @@ export default function PatientsPageContent() {
   const statusMutation = useMutation({
     mutationFn: async ({ userId, active }: { userId: string; active: boolean }) =>
       changeUserActive(userId, active),
-    onSuccess: () => {
-      refetch();
-    },
-    onError: (err: any) => {
-      console.error('Error al cambiar estado:', err?.message || err);
-    },
+    onSuccess: () => refetch(),
   });
 
   function handleEdit(patient: Patient) {
@@ -102,13 +96,12 @@ export default function PatientsPageContent() {
 
   function handleToggleStatus(patient: Patient) {
     const active = isActiveFromUser(patient.user as User);
-    const next = !active;
     const userId = patient.user?.id;
     if (!userId) {
-      console.warn('Paciente sin usuario asociado, no se puede cambiar estado');
+      console.warn('Paciente sin usuario asociado.');
       return;
     }
-    statusMutation.mutate({ userId, active: next });
+    statusMutation.mutate({ userId, active: !active });
   }
 
   function getFirstName(p: Patient) {
@@ -152,7 +145,10 @@ export default function PatientsPageContent() {
     );
   }
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting =
+    createCompositeMutation.isPending ||
+    updateMutation.isPending ||
+    statusMutation.isPending;
 
   return (
     <div className="flex min-h-screen">
@@ -186,9 +182,9 @@ export default function PatientsPageContent() {
           </div>
         )}
 
-        {createMutation.isError && (
+        {createCompositeMutation.isError && (
           <div className="text-red-600 mb-2">
-            Error al crear paciente: {(createMutation.error as any)?.message || ''}
+            Error al crear paciente: {(createCompositeMutation.error as any)?.message || ''}
           </div>
         )}
         {updateMutation.isError && (
@@ -201,7 +197,7 @@ export default function PatientsPageContent() {
             Error al cambiar estado del paciente: {String((statusMutation.error as any)?.message || '')}
           </div>
         )}
-        {createMutation.isSuccess && (
+        {createCompositeMutation.isSuccess && (
           <div className="text-green-600 mb-2">Paciente creado correctamente</div>
         )}
         {updateMutation.isSuccess && (
@@ -215,7 +211,7 @@ export default function PatientsPageContent() {
 
         {showForm && (
           <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
+            <div className="bg-white p-6 rounded shadow-lg max-w-2xl w-full">
               <PatientForm
                 mode={editPatient ? 'edit' : 'create'}
                 initialValues={
@@ -232,14 +228,22 @@ export default function PatientsPageContent() {
                     : undefined
                 }
                 submitting={isSubmitting}
-                onSubmit={(data) => {
+                onSubmit={(data: any) => {
                   if (editPatient) {
-                    updateMutation.mutate({
-                      id: editPatient.id,
-                      data: data as any,
-                    });
+                    updateMutation.mutate({ id: editPatient.id, data });
                   } else {
-                    createMutation.mutate(data as any);
+                    if (data.user && data.patient) {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.log('[PatientsPage] composite create payload (raw):', data);
+                      }
+                      createCompositeMutation.mutate(data);
+                    } else {
+                      console.error(
+                        '[PatientsPage] Formulario no retornó estructura compuesta {user, patient}',
+                        data,
+                      );
+                      alert('Error interno: el formulario no envió datos de usuario y paciente.');
+                    }
                   }
                 }}
                 onCancel={() => {
@@ -251,7 +255,6 @@ export default function PatientsPageContent() {
           </div>
         )}
 
-        {/* Tabla desktop */}
         <div className="hidden md:block bg-white rounded shadow border mt-2 w-full overflow-x-auto">
           <table className="min-w-max border w-full">
             <thead>
@@ -324,7 +327,6 @@ export default function PatientsPageContent() {
           </table>
         </div>
 
-        {/* Vista móvil */}
         <div className="md:hidden flex flex-col gap-4 mt-2">
           {patients?.length === 0 && (
             <div className="py-8 text-center text-gray-500">
@@ -350,7 +352,7 @@ export default function PatientsPageContent() {
                     <span className="font-medium">Teléfono:</span> {p.user?.phone || '-'}
                   </div>
                   <div>
-                    <span className="font-medium">Tipo de Sangre:</span> {p.bloodType || '-'}
+                    <span className="font-medium">Tipo Sangre:</span> {p.bloodType || '-'}
                   </div>
                   <div>
                     <span className="font-medium">Email:</span> {p.user?.email || '-'}

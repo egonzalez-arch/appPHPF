@@ -1,35 +1,41 @@
-import { createUser, CreateUserInput } from './api.users';
-import { createPatient, Patient } from './api';
+import { API_URL } from './api';
 
-interface NewPatientCompositeInput {
-  user: CreateUserInput;
-  patient: {
-    birthDate: string;
-    PatientSex: string;
-    bloodType?: string;
-    allergies?: string[];
-    emergencyContact?: {
-      name?: string;
-      relation?: string;
-      phone?: string;
-    };
-  };
+function getCsrfTokenFromCookie(): string {
+  if (typeof document === 'undefined') return '';
+  return (
+    document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('csrf_token='))
+      ?.split('=')[1] || ''
+  );
 }
 
-export async function createPatientWithUser(input: NewPatientCompositeInput): Promise<Patient> {
-  const user = await createUser({
-    ...input.user,
-    role: input.user.role || 'PATIENT',
+export interface CreateUserInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  password: string;
+  role?: string;
+}
+
+export async function createUser(data: CreateUserInput) {
+  const csrfToken = getCsrfTokenFromCookie();
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[createUser] body:', data);
+  }
+  const res = await fetch(`${API_URL}/users`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify(data),
   });
-
-  const patient = await createPatient({
-    userId: user.id,
-    birthDate: input.patient.birthDate,
-    PatientSex: input.patient.PatientSex,
-    bloodType: input.patient.bloodType,
-    allergies: input.patient.allergies,
-    emergencyContact: input.patient.emergencyContact,
-  } as any);
-
-  return { ...patient, user };
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || 'Error al crear usuario');
+  }
+  return res.json();
 }
