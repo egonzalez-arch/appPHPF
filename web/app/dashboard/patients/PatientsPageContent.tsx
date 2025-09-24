@@ -1,9 +1,10 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchPatients,
   fetchPatientsWithSession,
   createPatient,
-  changeUserActive,   // <-- usar el nuevo helper basado en cookies + CSRF
+  changeUserActive,
+  updatePatient,
   Patient,
   isActiveFromUser,
   User,
@@ -12,17 +13,44 @@ import PatientForm from '@/components/forms/PatientForm';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
+function formatDateForInput(value?: string | Date | null): string {
+  if (!value) return '';
+  try {
+    const d = typeof value === 'string' ? new Date(value) : value;
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().substring(0, 10);
+  } catch {
+    return '';
+  }
+}
+
+function buildEmergencyContactText(ec: any): string {
+  if (!ec) return '-';
+  const parts: string[] = [];
+  if (ec.name) parts.push(ec.name);
+  if (ec.relation) parts.push(`(${ec.relation})`);
+  if (ec.phone) parts.push(`Tel: ${ec.phone}`);
+  return parts.length ? parts.join(' ') : '-';
+}
+
 export default function PatientsPageContent() {
   const [editPatient, setEditPatient] = useState<Patient | null>(null);
   const [showForm, setShowForm] = useState(false);
   const { user: sessionUser, accessToken } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Elige el fetch adecuado según tengas o no accessToken
-  const queryFn = useMemo(() => {
-    return accessToken ? () => fetchPatientsWithSession() : () => fetchPatients();
-  }, [accessToken]);
+  const queryFn = useMemo(
+    () => (accessToken ? () => fetchPatientsWithSession() : () => fetchPatients()),
+    [accessToken],
+  );
 
-  const { data: patients, refetch, isLoading, isError, error } = useQuery({
+  const {
+    data: patients,
+    refetch,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ['patients'],
     enabled: !!sessionUser,
     queryFn,
@@ -31,25 +59,44 @@ export default function PatientsPageContent() {
 
   const createMutation = useMutation({
     mutationFn: createPatient,
-    onSuccess: () => {
-      refetch();
+    onSuccess: (newPatient) => {
+      queryClient.setQueryData<Patient[]>(['patients'], (old) =>
+        old ? [...old, newPatient] : [newPatient],
+      );
       setShowForm(false);
+      setEditPatient(null);
     },
   });
 
-  // Mutación para activar/desactivar usuario del paciente usando cookies + CSRF
-  const statusMutation = useMutation({
-    mutationFn: async ({ userId, active }: { userId: string; active: boolean }) => {
-      return await changeUserActive(userId, active);
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Patient> }) =>
+      updatePatient(id, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Patient[]>(['patients'], (old) =>
+        old ? old.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)) : [updated],
+      );
+      setShowForm(false);
+      setEditPatient(null);
     },
-    onSuccess: () => refetch(),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ userId, active }: { userId: string; active: boolean }) =>
+      changeUserActive(userId, active),
+    onSuccess: () => {
+      refetch();
+    },
     onError: (err: any) => {
       console.error('Error al cambiar estado:', err?.message || err);
     },
   });
 
   function handleEdit(patient: Patient) {
-    setEditPatient(patient);
+    const prepared: Patient = {
+      ...patient,
+      birthDate: formatDateForInput(patient.birthDate as any) as any,
+    };
+    setEditPatient(prepared);
     setShowForm(true);
   }
 
@@ -65,13 +112,13 @@ export default function PatientsPageContent() {
   }
 
   function getFirstName(p: Patient) {
-    return (p.user?.firstName as string) || p.firstName || p.nombre || '-';
-  }
-  function getLastName(p: Patient) {
-    return (p.user?.lastName as string) || p.lastName || p.apellido || '-';
+    return (p.user?.firstName as string) || p.firstName || (p as any).nombre || '-';
   }
 
-  // Switch/toggle visual para el estado
+  function getLastName(p: Patient) {
+    return (p.user?.lastName as string) || p.lastName || (p as any).apellido || '-';
+  }
+
   function StatusSwitch({ patient }: { patient: Patient }) {
     const checked = isActiveFromUser(patient.user as User);
     return (
@@ -105,6 +152,8 @@ export default function PatientsPageContent() {
     );
   }
 
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
   return (
     <div className="flex min-h-screen">
       <main className="flex-1 px-2 sm:px-6 lg:px-10 py-6 min-w-0">
@@ -117,6 +166,7 @@ export default function PatientsPageContent() {
               setShowForm(true);
             }}
             aria-label="Crear nuevo paciente"
+            disabled={isSubmitting}
           >
             ➕ Nuevo Paciente
           </button>
@@ -135,8 +185,16 @@ export default function PatientsPageContent() {
             Error: {String(error)}
           </div>
         )}
+
         {createMutation.isError && (
-          <div className="text-red-600 mb-2">Error al crear paciente</div>
+          <div className="text-red-600 mb-2">
+            Error al crear paciente: {(createMutation.error as any)?.message || ''}
+          </div>
+        )}
+        {updateMutation.isError && (
+          <div className="text-red-600 mb-2">
+            Error al actualizar paciente: {(updateMutation.error as any)?.message || ''}
+          </div>
         )}
         {statusMutation.isError && (
           <div className="text-red-600 mb-2">
@@ -146,6 +204,9 @@ export default function PatientsPageContent() {
         {createMutation.isSuccess && (
           <div className="text-green-600 mb-2">Paciente creado correctamente</div>
         )}
+        {updateMutation.isSuccess && (
+          <div className="text-green-600 mb-2">Paciente actualizado correctamente</div>
+        )}
         {statusMutation.isSuccess && (
           <div className="text-green-600 mb-2">
             Estado de paciente actualizado correctamente
@@ -153,16 +214,32 @@ export default function PatientsPageContent() {
         )}
 
         {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+          <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50">
             <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
               <PatientForm
-                initialValues={editPatient || undefined}
+                mode={editPatient ? 'edit' : 'create'}
+                initialValues={
+                  editPatient
+                    ? {
+                        birthDate: editPatient.birthDate
+                          ? formatDateForInput(editPatient.birthDate as any)
+                          : '',
+                        PatientSex: editPatient.PatientSex,
+                        bloodType: editPatient.bloodType,
+                        allergies: editPatient.allergies || [],
+                        emergencyContact: editPatient.emergencyContact || undefined,
+                      }
+                    : undefined
+                }
+                submitting={isSubmitting}
                 onSubmit={(data) => {
                   if (editPatient) {
-                    // Aquí usas updatePatient para editar datos del paciente (no el estado de usuario)
-                    // Mantener flujo actual
+                    updateMutation.mutate({
+                      id: editPatient.id,
+                      data: data as any,
+                    });
                   } else {
-                    createMutation.mutate(data);
+                    createMutation.mutate(data as any);
                   }
                 }}
                 onCancel={() => {
@@ -174,7 +251,7 @@ export default function PatientsPageContent() {
           </div>
         )}
 
-        {/* Tabla responsiva en desktop */}
+        {/* Tabla desktop */}
         <div className="hidden md:block bg-white rounded shadow border mt-2 w-full overflow-x-auto">
           <table className="min-w-max border w-full">
             <thead>
@@ -187,6 +264,7 @@ export default function PatientsPageContent() {
                 <th className="px-4 py-2 border-b">Tipo de Sangre</th>
                 <th className="px-4 py-2 border-b">Email</th>
                 <th className="px-4 py-2 border-b">Alergias</th>
+                <th className="px-4 py-2 border-b">Contacto Emerg.</th>
                 <th className="px-4 py-2 border-b">Estado</th>
                 <th className="px-4 py-2 border-b">Fecha registro</th>
                 <th className="px-4 py-2 border-b">Acciones</th>
@@ -200,98 +278,117 @@ export default function PatientsPageContent() {
                   </td>
                 </tr>
               )}
-              {patients?.map((p: Patient) => (
-                <tr key={p.id} className="hover:bg-teal-50">
-                  <td className="px-4 py-2">{getFirstName(p)}</td>
-                  <td className="px-4 py-2">{getLastName(p)}</td>
-                  <td className="px-4 py-2">
-                    {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-2">{p.PatientSex || '-'}</td>
-                  <td className="px-4 py-2">{p.user?.phone || '-'}</td>
-                  <td className="px-4 py-2">{p.bloodType || '-'}</td>
-                  <td className="px-4 py-2">{p.user?.email || '-'}</td>
-                  <td className="px-4 py-2">{String(p.allergies ?? '-')}</td>
-                  {/* ESTADO: el switch/toggle */}
-                  <td className="px-4 py-2">
-                    <StatusSwitch patient={p} />
-                  </td>
-                  <td className="px-4 py-2">
-                    {p.user?.createdAt
-                      ? new Date(p.user.createdAt as string).toLocaleDateString()
-                      : '-'}
-                  </td>
-                  <td className="px-4 py-2 flex gap-2">
-                    <button
-                      className="text-teal-600 hover:underline"
-                      onClick={() => handleEdit(p)}
-                      disabled={createMutation.isPending}
-                      aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
-                    >
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {patients?.map((p) => {
+                const ecText = buildEmergencyContactText(p.emergencyContact);
+                return (
+                  <tr key={p.id} className="hover:bg-teal-50">
+                    <td className="px-4 py-2">{getFirstName(p)}</td>
+                    <td className="px-4 py-2">{getLastName(p)}</td>
+                    <td className="px-4 py-2">
+                      {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2">{p.PatientSex || '-'}</td>
+                    <td className="px-4 py-2">{p.user?.phone || '-'}</td>
+                    <td className="px-4 py-2">{p.bloodType || '-'}</td>
+                    <td className="px-4 py-2">{p.user?.email || '-'}</td>
+                    <td className="px-4 py-2">
+                      {Array.isArray(p.allergies)
+                        ? p.allergies.join(', ')
+                        : p.allergies
+                        ? String(p.allergies)
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-2">{ecText}</td>
+                    <td className="px-4 py-2">
+                      <StatusSwitch patient={p} />
+                    </td>
+                    <td className="px-4 py-2">
+                      {p.user?.createdAt
+                        ? new Date(p.user.createdAt as string).toLocaleDateString()
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-2 flex gap-2">
+                      <button
+                        className="text-teal-600 hover:underline"
+                        onClick={() => handleEdit(p)}
+                        disabled={isSubmitting}
+                        aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
-        {/* Vista tipo tarjeta en móvil */}
+        {/* Vista móvil */}
         <div className="md:hidden flex flex-col gap-4 mt-2">
           {patients?.length === 0 && (
             <div className="py-8 text-center text-gray-500">
               No hay pacientes registrados.
             </div>
           )}
-          {patients?.map((p: Patient) => (
-            <div key={p.id} className="rounded border shadow p-4 bg-white">
-              <div className="font-bold text-lg mb-2">
-                {getFirstName(p)} {getLastName(p)}
+          {patients?.map((p) => {
+            const ecText = buildEmergencyContactText(p.emergencyContact);
+            return (
+              <div key={p.id} className="rounded border shadow p-4 bg-white">
+                <div className="font-bold text-lg mb-2">
+                  {getFirstName(p)} {getLastName(p)}
+                </div>
+                <div className="text-sm text-gray-700 space-y-1">
+                  <div>
+                    <span className="font-medium">Fecha Nac.:</span>{' '}
+                    {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
+                  </div>
+                  <div>
+                    <span className="font-medium">Sexo:</span> {p.PatientSex || '-'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Teléfono:</span> {p.user?.phone || '-'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Tipo de Sangre:</span> {p.bloodType || '-'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Email:</span> {p.user?.email || '-'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Alergias:</span>{' '}
+                    {Array.isArray(p.allergies)
+                      ? p.allergies.join(', ')
+                      : p.allergies
+                      ? String(p.allergies)
+                      : '-'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Contacto Emerg.:</span> {ecText}
+                  </div>
+                  <div className="mt-2">
+                    <StatusSwitch patient={p} />
+                  </div>
+                  <div>
+                    <span className="font-medium">Fecha registro:</span>{' '}
+                    {p.user?.createdAt
+                      ? new Date(p.user.createdAt as string).toLocaleDateString()
+                      : '-'}
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-3">
+                  <button
+                    className="text-teal-600 hover:underline"
+                    onClick={() => handleEdit(p)}
+                    disabled={isSubmitting}
+                    aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
+                  >
+                    Editar
+                  </button>
+                </div>
               </div>
-              <div className="text-sm text-gray-700">
-                <div>
-                  <span className="font-medium">Fecha Nac.:</span>{' '}
-                  {p.birthDate && new Date(p.birthDate).toLocaleDateString()}
-                </div>
-                <div>
-                  <span className="font-medium">Sexo:</span> {p.PatientSex || '-'}
-                </div>
-                <div>
-                  <span className="font-medium">Teléfono:</span> {p.user?.phone || '-'}
-                </div>
-                <div>
-                  <span className="font-medium">Tipo de Sangre:</span> {p.bloodType || '-'}
-                </div>
-                <div>
-                  <span className="font-medium">Email:</span> {p.user?.email || '-'}
-                </div>
-                <div>
-                  <span className="font-medium">Alergias:</span> {String(p.allergies ?? '-')}
-                </div>
-                {/* ESTADO: el switch/toggle */}
-                <div className="mt-2">
-                  <StatusSwitch patient={p} />
-                </div>
-                <div>
-                  <span className="font-medium">Fecha registro:</span>{' '}
-                  {p.user?.createdAt
-                    ? new Date(p.user.createdAt as string).toLocaleDateString()
-                    : '-'}
-                </div>
-              </div>
-              <div className="flex gap-4 mt-2">
-                <button
-                  className="text-teal-600 hover:underline"
-                  onClick={() => handleEdit(p)}
-                  disabled={createMutation.isPending}
-                  aria-label={`Editar paciente ${getFirstName(p)} ${getLastName(p)}`}
-                >
-                  Editar
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </main>
     </div>

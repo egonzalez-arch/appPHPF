@@ -1,28 +1,41 @@
-import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import {
+  IsOptional,
+  IsEnum,
+  IsString,
+  Matches,
+  IsArray,
+  IsObject,
+} from 'class-validator';
+import { CreatePatientDto } from './create-patient.dto';
 import { PatientSex } from './patient-sex.enum';
 
-export class UpdatePatientDto {
+export class UpdatePatientDto extends PartialType(CreatePatientDto) {
+  // birthDate sigue siendo string opcional
   @IsOptional()
   @IsString()
-  firstName?: string;
-
-  @IsOptional()
-  @IsString()
-  lastName?: string;
-
-  @IsOptional()
-  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'birthDate must be in format YYYY-MM-DD',
+  })
   birthDate?: string;
 
   @IsOptional()
   @IsEnum(PatientSex)
-  sex?: PatientSex;
-
-  @IsOptional()
-  @IsEmail()
-  email?: string;
+  PatientSex?: PatientSex;
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  @Matches(/^(A|B|AB|O)[+-]?$/i, {
+    message: 'bloodType must be valid (e.g. O+, AB-, A)',
+  })
+  bloodType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergies?: string[];
+
+  @IsOptional()
+  @IsObject()
+  emergencyContact?: Record<string, any>;
 }

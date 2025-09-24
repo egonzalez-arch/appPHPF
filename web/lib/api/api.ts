@@ -1,10 +1,10 @@
 import { QueryClient } from '@tanstack/react-query';
+import { buildPatientUpdatePayload } from './patientPayload';
 
 export const client = new QueryClient();
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-// Tipos compatibles con múltiples backends (manteniendo compatibilidad)
 export type StatusString = 'ACTIVE' | 'INACTIVE' | 'active' | 'inactive';
 
 export interface User {
@@ -14,12 +14,72 @@ export interface User {
   lastName?: string;
   email: string;
   role?: string;
-  // Soportar múltiples formatos de estado sin romper llamadas existentes
   status?: StatusString | boolean | 1 | 0 | null;
   phone?: string;
-  isActive?: boolean; // algunos backends usan isActive
+  isActive?: boolean;
   createdAt?: string | Date;
   [key: string]: unknown;
+}
+
+export interface EmergencyContact {
+  name?: string;
+  relation?: string;
+  phone?: string;
+  [k: string]: any;
+}
+
+function mapEmergencyContact(ecRaw: any): EmergencyContact | null {
+  if (!ecRaw || typeof ecRaw !== 'object' || Array.isArray(ecRaw)) return null;
+
+  // Normalización de posibles variantes en español / diferentes estilos
+  const name =
+    ecRaw.name ??
+    ecRaw.Name ??
+    ecRaw.nombre ??
+    ecRaw.Nombre ??
+    ecRaw.fullName ??
+    ecRaw.contactName;
+
+  const relation =
+    ecRaw.relation ??
+    ecRaw.Relation ??
+    ecRaw.relacion ??
+    ecRaw.Relación ??
+    ecRaw.relationship ??
+    ecRaw.parentesco;
+
+  const phone =
+    ecRaw.phone ??
+    ecRaw.telefono ??
+    ecRaw.tel ??
+    ecRaw.Telefono ??
+    ecRaw.mobile ??
+    ecRaw.celular ??
+    ecRaw.cel;
+
+  // Si no encontró las claves típicas pero sí hay otras, igual devolvemos algo
+  if (!name && !relation && !phone) {
+    // Devuelve el objeto original para que el frontend pueda mostrarlo serializado
+    return {
+      // lo dejamos “raw” para fallback
+      // puedes añadir un campo _raw si quieres
+      ...ecRaw,
+    };
+  }
+
+  return { name, relation, phone, ...ecRaw };
+}
+
+export function normalizePatient(p: any): Patient {
+  const ecParsed = safeParseJSON<any>(p.emergencyContact);
+  const ec = mapEmergencyContact(ecParsed);
+
+  return {
+    ...p,
+    emergencyContact: ec,
+    allergies: normalizeAllergies(p.allergies),
+    birthDate: normalizeBirthDate(p.birthDate),
+  };
 }
 
 export interface Patient {
@@ -28,10 +88,11 @@ export interface Patient {
   age?: number;
   firstName?: string;
   lastName?: string;
-  birthDate?: string;
+  birthDate?: string;            // normalizado a YYYY-MM-DD
   PatientSex?: string;
   phone?: string;
-  allergies?: JSON | string | null;
+  emergencyContact?: EmergencyContact | null;
+  allergies?: string[] | null;   // normalizamos a array de strings o null
   user?: User | null;
   nombre?: string;
   apellido?: string;
@@ -47,7 +108,6 @@ export interface Doctor {
   [key: string]: unknown;
 }
 
-// Helper para leer el CSRF token de la cookie
 function getCsrfTokenFromCookie(): string {
   if (typeof document === 'undefined') return '';
   return (
@@ -58,23 +118,13 @@ function getCsrfTokenFromCookie(): string {
   );
 }
 
-// Utilidades de estado
 export function isActiveFromUser(u?: User | null): boolean {
   if (!u) return false;
   const s = u.status;
-  if (typeof s === 'string') {
-    const v = s.toUpperCase();
-    return v === 'ACTIVE';
-  }
-  if (typeof s === 'number') {
-    return s === 1;
-  }
-  if (typeof s === 'boolean') {
-    return s;
-  }
-  if (typeof u.isActive === 'boolean') {
-    return u.isActive;
-  }
+  if (typeof s === 'string') return s.toUpperCase() === 'ACTIVE';
+  if (typeof s === 'number') return s === 1;
+  if (typeof s === 'boolean') return s;
+  if (typeof u.isActive === 'boolean') return u.isActive;
   return false;
 }
 
@@ -82,11 +132,6 @@ export function toStatusString(active: boolean): StatusString {
   return active ? 'ACTIVE' : 'INACTIVE';
 }
 
-/**
- * Construye un payload de actualización de estado compatible con backends que usan:
- * - status: 'ACTIVE' | 'INACTIVE'
- * - isActive: boolean
- */
 function buildStatusPayload(active: boolean, mode: 'string' | 'boolean') {
   return mode === 'string'
     ? { status: toStatusString(active) }
@@ -102,12 +147,59 @@ async function parseOrText(res: Response) {
   }
 }
 
-/**
- * Actualiza estado de usuario de forma robusta probando ambos formatos.
- * - Primero intenta PATCH /users/:id { status: 'ACTIVE' | 'INACTIVE' }
- * - Si falla (400/422), intenta { isActive: boolean }
- */
-// Deshabilitar usuario usando cookies + CSRF (misma lógica que fetchPatients)
+/* ---------------- Normalización de Patient ---------------- */
+
+function safeParseJSON<T = any>(value: unknown): T | null {
+  if (value == null) return null;
+  if (typeof value === 'object') return value as T;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed) as T;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function normalizeAllergies(raw: any): string[] | null {
+  if (raw == null) return null;
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === 'string') {
+    const parsed = safeParseJSON<any>(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+    // fallback: dividir por coma
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return null;
+}
+
+function normalizeBirthDate(birthDate: any): string | undefined {
+  if (!birthDate) return undefined;
+  if (typeof birthDate === 'string') {
+    // Si ya está en formato YYYY-MM-DD o ISO, recortar
+    if (birthDate.length >= 10) return birthDate.substring(0, 10);
+    return birthDate;
+  }
+  if (birthDate instanceof Date) {
+    return birthDate.toISOString().substring(0, 10);
+  }
+  return undefined;
+}
+
+
+
+function normalizePatients(list: any[]): Patient[] {
+  return list.map(normalizePatient);
+}
+
+/* ---------------- User status helpers (cookies + CSRF) ---------------- */
+
 export async function disableUser(id: string): Promise<User> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/users/${id}/disable`, {
@@ -126,7 +218,6 @@ export async function disableUser(id: string): Promise<User> {
   return data as User;
 }
 
-// Habilitar usuario (poner ACTIVE) usando cookies + CSRF
 export async function enableUser(id: string): Promise<User> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/users/${id}`, {
@@ -147,17 +238,12 @@ export async function enableUser(id: string): Promise<User> {
   return data as User;
 }
 
-// Toggle helper: según el "activo" deseado, llama a enableUser o disableUser
 export async function changeUserActive(userId: string, active: boolean): Promise<User> {
-  if (active) {
-    return enableUser(userId);
-  }
-  return disableUser(userId);
+  return active ? enableUser(userId) : disableUser(userId);
 }
-/**
- * Opción existente (cookies) — la dejamos por compatibilidad si hay otros lugares que la usan.
- * Si el backend de GET /patients requiere Bearer, usa fetchPatientsWithSession() o fetchPatientsWithToken()
- */
+
+/* ---------------- Patients ---------------- */
+
 export async function fetchPatients(): Promise<Patient[]> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
@@ -171,13 +257,10 @@ export async function fetchPatients(): Promise<Patient[]> {
     const msg = await res.text().catch(() => '');
     throw new Error(msg || 'No autorizado');
   }
-  return res.json();
+  const data = await res.json();
+  return Array.isArray(data) ? normalizePatients(data) : [];
 }
 
-/**
- * NUEVO: obtiene sesión (user + accessToken) usando cookies.
- * Requiere que el backend devuelva accessToken en /auth/validate-session.
- */
 export async function getSession(): Promise<{ user: any | null; accessToken?: string }> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {
@@ -192,7 +275,6 @@ export async function getSession(): Promise<{ user: any | null; accessToken?: st
   return { user: data.user || null, accessToken: data.accessToken };
 }
 
-
 export async function createPatient(data: Omit<Patient, 'id'>): Promise<Patient> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/patients`, {
@@ -205,11 +287,13 @@ export async function createPatient(data: Omit<Patient, 'id'>): Promise<Patient>
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const created = await res.json();
+  return normalizePatient(created);
 }
 
-export async function updatePatient(id: string, data: Partial<Patient>): Promise<Patient> {
+export async function updatePatient(id: string, data: any): Promise<Patient> {
   const csrfToken = getCsrfTokenFromCookie();
+  const sanitized = buildPatientUpdatePayload(data);
   const res = await fetch(`${API_URL}/patients/${id}`, {
     method: 'PATCH',
     credentials: 'include',
@@ -217,10 +301,14 @@ export async function updatePatient(id: string, data: Partial<Patient>): Promise
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(sanitized),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt);
+  }
+  const updated = await res.json();
+  return normalizePatient(updated);
 }
 
 export async function deletePatient(id: string): Promise<void> {
@@ -235,13 +323,14 @@ export async function deletePatient(id: string): Promise<void> {
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return;
   try {
-    await res.json(); // si hay cuerpo, consúmelo
+    await res.json();
   } catch {
-    // ignora si no hay JSON
+    // ignorar
   }
 }
 
-// Doctor Functions
+/* ---------------- Doctors ---------------- */
+
 export async function fetchDoctors(): Promise<Doctor[]> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/doctors`, {
@@ -298,11 +387,12 @@ export async function deleteDoctor(id: string): Promise<void> {
   try {
     await res.json();
   } catch {
-    // ignora si no hay JSON
+    // ignorar
   }
 }
 
-// Login (sin cambios, para no impactar el flujo actual)
+/* ---------------- Auth ---------------- */
+
 export async function login(email: string, password: string): Promise<any> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
@@ -315,13 +405,10 @@ export async function login(email: string, password: string): Promise<any> {
     throw new Error(errorData.message || 'Credenciales incorrectas');
   }
   const data = await res.json();
-  if (!data.user) {
-    throw new Error('Credenciales incorrectas');
-  }
+  if (!data.user) throw new Error('Credenciales incorrectas');
   return data.user;
 }
 
-// Logout
 export async function logout(): Promise<void> {
   const csrfToken = getCsrfTokenFromCookie();
   await fetch(`${API_URL}/auth/logout`, {
@@ -333,7 +420,6 @@ export async function logout(): Promise<void> {
   });
 }
 
-// Validar sesión (se mantiene para compatibilidad en el resto del código)
 export async function validateSession(): Promise<any> {
   const csrfToken = getCsrfTokenFromCookie();
   const res = await fetch(`${API_URL}/auth/validate-session`, {

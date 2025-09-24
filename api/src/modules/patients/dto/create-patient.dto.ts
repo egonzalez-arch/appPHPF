@@ -1,24 +1,45 @@
-import { IsString, IsDateString, IsEmail, IsEnum, IsOptional } from 'class-validator';
-
+import {
+  IsUUID,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+  IsArray,
+  IsObject,
+} from 'class-validator';
 import { PatientSex } from './patient-sex.enum';
 
 export class CreatePatientDto {
-  @IsString()
-  firstName: string;
+  @IsUUID('4')
+  @IsNotEmpty()
+  userId: string;
 
+  // Mantener como string; el validador aplica correctamente
+  @IsNotEmpty()
   @IsString()
-  lastName: string;
-
-  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'birthDate must be in format YYYY-MM-DD',
+  })
   birthDate: string;
 
   @IsEnum(PatientSex)
-  sex: PatientSex;
-
-  @IsEmail()
-  email: string;
+  @IsNotEmpty()
+  PatientSex: PatientSex;
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  @Matches(/^(A|B|AB|O)[+-]?$/i, {
+    message: 'bloodType must be valid (e.g. O+, AB-, A)',
+  })
+  bloodType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergies?: string[];
+
+  @IsOptional()
+  @IsObject()
+  emergencyContact?: Record<string, any>;
 }
