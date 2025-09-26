@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Patient } from '../patients/patient.entity';
-import { Doctor } from '../doctors/doctor.entity';
+import { Doctor } from '../doctors/doctors.entity';
 
 export enum ReferralStatus {
   PENDING = 'PENDING',

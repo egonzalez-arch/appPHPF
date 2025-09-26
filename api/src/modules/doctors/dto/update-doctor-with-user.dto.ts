@@ -1,24 +1,20 @@
 import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { UpdateDoctorDto } from './update-doctor.dto';
 
-/**
- * Para actualizar SOLO campos de Doctor.
- * Si quieres permitir actualizar datos del usuario (nombre, teléfono),
- * puedes crear UpdateDoctorWithUserDto aparte.
- */
-export class UpdateDoctorDto {
+export class UpdateDoctorWithUserDto extends UpdateDoctorDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  specialty?: string;
+  firstName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  license?: string;
+  lastName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  bio?: string;
+  phone?: string;
 }
