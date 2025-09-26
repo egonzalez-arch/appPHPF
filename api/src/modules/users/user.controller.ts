@@ -12,57 +12,94 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
-// import { UserStatusService } from './dto/User-Status'; // (No usado) -> eliminar
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { User } from './user.entity';
+import { UserRole } from './user.entity';
 
+@ApiTags('Users')
+@ApiBearerAuth()
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UserController {
   constructor(private readonly service: UserService) {}
 
   @Get()
-  @Roles('ADMIN')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Listar usuarios' })
+  @ApiResponse({ status: 200, description: 'Listado OK' })
   findAll() {
     return this.service.findAll();
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'DOCTOR', 'PATIENT', 'INSURER')
-  findOne(@Param('id') id: string) {
+  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.PATIENT, UserRole.INSURER)
+  @ApiOperation({ summary: 'Obtener un usuario por id' })
+  @ApiParam({ name: 'id', type: 'string', description: 'UUID del usuario' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404, description: 'No encontrado' })
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Crear usuario' })
+  @ApiResponse({ status: 201, description: 'Creado' })
+  @ApiResponse({ status: 409, description: 'Email duplicado' })
   create(@Body() dto: CreateUserDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Actualizar usuario' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Actualizado' })
+  @ApiResponse({ status: 404, description: 'No encontrado' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
-  remove(@Param('id') id: string) {
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Eliminar usuario' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Eliminado' })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);
   }
 
-  // Nuevo endpoint: deshabilitar usuario (INACTIVE)
   @Post(':id/disable')
-  @Roles('ADMIN')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Deshabilitar usuario (status = INACTIVE)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiResponse({ status: 200 })
   @HttpCode(HttpStatus.OK)
-  async disable(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<Partial<User>> {
-    const user = await this.service.disable(id); // usar this.service (no this.userService)
-    return user; // ya sanitizado en el servicio
+  disable(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.disable(id);
+  }
+
+  @Post(':id/enable')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Habilitar usuario (status = ACTIVE)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiResponse({ status: 200 })
+  @HttpCode(HttpStatus.OK)
+  enable(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.enable(id);
   }
 }

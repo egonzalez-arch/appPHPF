@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Index,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
@@ -6,6 +13,7 @@ export enum UserRole {
   PATIENT = 'PATIENT',
   INSURER = 'INSURER',
 }
+
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
@@ -36,8 +44,14 @@ export class User {
   @Column()
   lastName: string;
 
+  // IMPORTANTE: sin uniones para que reflect-metadata emita String
+  // Al ser nullable: true, puedes guardar null en la DB aunque el tipo TS sea string | undefined.
   @Column({ nullable: true })
-  phone: string;
+  phone?: string;
+
+  // Alternativa explícita si quieres forzar tipo:
+  // @Column({ type: 'varchar', length: 32, nullable: true })
+  // phone?: string;
 
   @CreateDateColumn()
   createdAt: Date;
