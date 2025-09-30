@@ -14,7 +14,7 @@ export default function DoctorDashboard() {
       </div>
       <div className="bg-muted rounded-lg p-8 flex flex-col items-center justify-center mb-6">
         <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <span>ℹ️</span> No tienes pacientes aún
+          <span>ℹ️</span> No tienes pacientes aún... 
         </h2>
         <p>
           Te sugerimos colocar información de pacientes reales ya que colocar información de prueba puede afectar a tus estadísticas.

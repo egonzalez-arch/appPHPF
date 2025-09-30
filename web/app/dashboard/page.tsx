@@ -10,7 +10,7 @@ export default function DashboardPage() {
           <FaInfoCircle size={56} className="text-blue-500 mx-auto" />
         </div>
         <h2 className="text-2xl md:text-3xl font-bold mb-6">
-          No tienes pacientes aún
+          No tienes pacientes aún .
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-2xl leading-relaxed text-base md:text-lg">
           Te sugerimos colocar información de pacientes reales ya que colocar información de prueba puede afectar a tus estadísticas.
