@@ -82,6 +82,7 @@ export class DoctorsService {
 
   async create(dto: CreateDoctorDto): Promise<SanitizedDoctor> {
     // Validar que el usuario existe
+    console.log('Crear doctor con userId:', dto.userId);
     const user = await this.userRepo.findOne({ where: { id: dto.userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado para userId');
 
@@ -106,7 +107,7 @@ export class DoctorsService {
       user: userDto,
       doctor: { specialty, license, bio },
     } = dto;
-
+    console.log('Crear doctor con usuario:', userDto, specialty, license, bio);
     return this.dataSource.transaction(async (manager) => {
       const userRepository = manager.getRepository(User);
       const doctorRepository = manager.getRepository(Doctor);
