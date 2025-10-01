@@ -10,7 +10,7 @@ import {
   CreateDoctorOnlyInput,
   UpdateDoctorInput,
   DoctorEntity,
-} from '../api/api.doctors';
+} from '../lib/api/api.doctors';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 /* ================= Query Keys ================= */

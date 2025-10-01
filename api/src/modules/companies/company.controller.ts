@@ -1,22 +1,55 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { CompanyService } from './company.service';
-import { CreateCompanyDto, UpdateCompanyDto } from './dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { CompaniesService } from './company.service';
+import { CreateCompanyDto } from './dto/create-company.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 
+@ApiTags('companies')
 @Controller('companies')
-@UseGuards(JwtAuthGuard)
-export class CompanyController {
-  constructor(private readonly service: CompanyService) {}
+export class CompaniesController {
+  constructor(private readonly service: CompaniesService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Listar empresas (opcional búsqueda)' })
+  @ApiQuery({ name: 'search', required: false })
+  findAll(@Query('search') search?: string) {
+    return this.service.findAll(search);
+  }
 
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.service.findOne(id); }
+  @ApiOperation({ summary: 'Obtener empresa por ID' })
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOne(id);
+  }
 
   @Post()
-  create(@Body() dto: CreateCompanyDto) { return this.service.create(dto); }
+  @ApiOperation({ summary: 'Crear empresa' })
+  create(@Body() dto: CreateCompanyDto) {
+    return this.service.create(dto);
+  }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) { return this.service.update(id, dto); }
+  @ApiOperation({ summary: 'Actualizar empresa' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCompanyDto,
+  ) {
+    return this.service.update(id, dto);
+  }
 
   @Delete(':id')
-  remove(@Param('id') id: string) { return this.service.remove(id); }
+  @ApiOperation({ summary: 'Eliminar empresa' })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.remove(id);
+  }
 }
