@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ValidateNested } from 'class-validator';
+import { ValidateNested, IsString, IsEmail, IsOptional, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CreateDoctorCoreDto } from './create-doctor-core.dto';
 
@@ -8,15 +8,27 @@ export class DoctorUserDetailsDto {
   constructor() {
     console.log('Instanciando DoctorUserDetailsDto');
   }
+
   @ApiProperty()
+  @IsString()
   firstName: string;
+
   @ApiProperty()
+  @IsString()
   lastName: string;
+
   @ApiProperty()
+  @IsEmail()
   email: string;
+
   @ApiProperty()
+  @IsString()
+  @MinLength(6)
   password: string;
+
   @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   phone?: string;
 }
 

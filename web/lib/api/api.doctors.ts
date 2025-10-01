@@ -1,6 +1,4 @@
 import { API_URL } from './api';
-import { isActiveFromUser } from './api'; // si ya lo tienes
-// O podrías importar helpers de usuarios
 
 function getCsrf() {
   if (typeof document === 'undefined') return '';
@@ -10,6 +8,8 @@ function getCsrf() {
       .find((r) => r.startsWith('csrf_token='))?.split('=')[1] || ''
   );
 }
+
+/* ================= Tipos alineados con backend ================= */
 
 export interface DoctorUserPayload {
   firstName: string;
@@ -25,6 +25,30 @@ export interface DoctorCorePayload {
   bio?: string;
 }
 
+export interface CreateDoctorWithUserInput {
+  user: DoctorUserPayload;
+  doctor: DoctorCorePayload;
+}
+
+export interface CreateDoctorOnlyInput {
+  userId: string;
+  specialty: string;
+  license: string;
+  bio?: string;
+}
+
+export interface DoctorUserEmbedded {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  status?: string;
+  role?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DoctorEntity {
   id: string;
   specialty: string;
@@ -32,28 +56,28 @@ export interface DoctorEntity {
   bio?: string | null;
   createdAt?: string;
   updatedAt?: string;
-  user?: {
-    id: string;
-    firstName?: string;
-    lastName?: string;
-    email: string;
-    phone?: string;
-    status?: any;
-    role?: string;
-    createdAt?: string;
-  };
+  user?: DoctorUserEmbedded;
 }
 
-export interface CreateDoctorWithUserInput {
-  user: DoctorUserPayload;
-  doctor: DoctorCorePayload;
+/* ================= Helpers parsing ================= */
+
+function parseErrorMessage(txt: string) {
+  try {
+    const j = JSON.parse(txt);
+    return j.message || txt;
+  } catch {
+    return txt || 'Error';
+  }
+}
+function parseJSONSafe<T = any>(txt: string): T {
+  try {
+    return JSON.parse(txt);
+  } catch {
+    throw new Error('Respuesta inválida del servidor');
+  }
 }
 
-export interface UpdateDoctorInput {
-  specialty?: string;
-  license?: string;
-  bio?: string;
-}
+/* ================= API Calls ================= */
 
 export async function fetchDoctors(): Promise<DoctorEntity[]> {
   const res = await fetch(`${API_URL}/doctors`, {
@@ -67,6 +91,10 @@ export async function fetchDoctors(): Promise<DoctorEntity[]> {
 export async function createDoctorWithUser(
   data: CreateDoctorWithUserInput,
 ): Promise<DoctorEntity> {
+  // Validación mínima antes de enviar
+  if (!data?.user || !data?.doctor) {
+    throw new Error('Payload inválido: falta user o doctor');
+  }
   const res = await fetch(`${API_URL}/doctors/with-user`, {
     method: 'POST',
     credentials: 'include',
@@ -74,15 +102,35 @@ export async function createDoctorWithUser(
       'Content-Type': 'application/json',
       'X-CSRF-Token': getCsrf(),
     },
-    
     body: JSON.stringify(data),
   });
-  console.log(data);
   const txt = await res.text();
-  if (!res.ok) {
-    throw new Error(parseErrorMessage(txt));
-  }
-  return parseJSONSafe(txt);
+  if (!res.ok) throw new Error(parseErrorMessage(txt));
+  return parseJSONSafe<DoctorEntity>(txt);
+}
+
+export async function createDoctorOnly(
+  data: CreateDoctorOnlyInput,
+): Promise<DoctorEntity> {
+  if (!data.userId) throw new Error('userId es requerido');
+  const res = await fetch(`${API_URL}/doctors`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrf(),
+    },
+    body: JSON.stringify(data),
+  });
+  const txt = await res.text();
+  if (!res.ok) throw new Error(parseErrorMessage(txt));
+  return parseJSONSafe<DoctorEntity>(txt);
+}
+
+export interface UpdateDoctorInput {
+  specialty?: string;
+  license?: string;
+  bio?: string;
 }
 
 export async function updateDoctor(
@@ -100,7 +148,7 @@ export async function updateDoctor(
   });
   const txt = await res.text();
   if (!res.ok) throw new Error(parseErrorMessage(txt));
-  return parseJSONSafe(txt);
+  return parseJSONSafe<DoctorEntity>(txt);
 }
 
 export async function disableDoctor(id: string): Promise<DoctorEntity> {
@@ -111,7 +159,7 @@ export async function disableDoctor(id: string): Promise<DoctorEntity> {
   });
   const txt = await res.text();
   if (!res.ok) throw new Error(parseErrorMessage(txt));
-  return parseJSONSafe(txt);
+  return parseJSONSafe<DoctorEntity>(txt);
 }
 
 export async function enableDoctor(id: string): Promise<DoctorEntity> {
@@ -122,15 +170,20 @@ export async function enableDoctor(id: string): Promise<DoctorEntity> {
   });
   const txt = await res.text();
   if (!res.ok) throw new Error(parseErrorMessage(txt));
-  return parseJSONSafe(txt);
+  return parseJSONSafe<DoctorEntity>(txt);
 }
 
 export async function toggleDoctorActive(
   doc: DoctorEntity,
 ): Promise<DoctorEntity> {
-  const active = isActiveFromUser(doc.user as any);
+  const active =
+    doc?.user?.status &&
+    typeof doc.user.status === 'string' &&
+    doc.user.status.toUpperCase() === 'ACTIVE';
   return active ? disableDoctor(doc.id) : enableDoctor(doc.id);
 }
+
+/* ================= Filtro client-side ================= */
 
 export function filterDoctorsClient(
   list: DoctorEntity[] | undefined,
@@ -152,20 +205,4 @@ export function filterDoctorsClient(
       .filter(Boolean)
       .some((f) => (f as string).toLowerCase().includes(t)),
   );
-}
-
-function parseErrorMessage(txt: string) {
-  try {
-    const j = JSON.parse(txt);
-    return j.message || txt;
-  } catch {
-    return txt || 'Error';
-  }
-}
-function parseJSONSafe(txt: string) {
-  try {
-    return JSON.parse(txt);
-  } catch {
-    throw new Error('Respuesta inválida del servidor');
-  }
 }

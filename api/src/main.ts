@@ -18,12 +18,12 @@ async function bootstrap() {
    app.use(csrfProtection);
  
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+  transformOptions: { enableImplicitConversion: true },
+}));
   const config = new DocumentBuilder()
     .setTitle('PHPF EHR API')
     .setDescription('API docs for medical practice/EHR with insurers')
