@@ -11,8 +11,6 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-
-import { CreateDoctorWithUserDto } from './dto/create-doctor-with-user.dto';
 import { DoctorsService } from './doctors.service';
 import { CreateDoctorDto } from './dto/create-doctor.dto'; // Usar el nuevo DTO
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
@@ -29,7 +27,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 
-
+import { CreateDoctorWithUserDto } from './dto/create-doctor-with-user.dto';
 
 
 @ApiTags('Doctors')
@@ -62,12 +60,11 @@ export class DoctorsController {
     return this.service.create(dto);
   }
 
-@Post('with-user')
-@Roles(UserRole.ADMIN)
-@ApiOperation({ summary: 'Crear doctor + usuario' })
-@ApiResponse({ status: 201 })
-createWithUser(@Body() dto: CreateDoctorWithUserDto) {
-  console.log('DTO recibido:', dto);
+  @Post('with-user')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Crear doctor + usuario' })
+  @ApiResponse({ status: 201 })
+ createWithUser(@Body() dto: CreateDoctorWithUserDto) {
   return this.service.createWithUser(dto);
 }
 
@@ -88,7 +85,6 @@ createWithUser(@Body() dto: CreateDoctorWithUserDto) {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDoctorWithUserDto,
   ) {
-    console.log('DTO recibido:', dto);
     return this.service.updateWithUser(id, dto);
   }
 

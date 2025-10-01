@@ -3,7 +3,10 @@ import { ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CreateDoctorCoreDto } from './create-doctor-core.dto';
 
-export class CreateDoctorUserDto {
+export class DoctorUserDetailsDto {
+  constructor() {
+    console.log('Instanciando DoctorUserDetailsDto');
+  }
   @ApiProperty()
   firstName: string;
   @ApiProperty()
@@ -17,10 +20,10 @@ export class CreateDoctorUserDto {
 }
 
 export class CreateDoctorWithUserDto {
-  @ApiProperty({ type: CreateDoctorUserDto })
+  @ApiProperty({ type: DoctorUserDetailsDto })
   @ValidateNested()
-  @Type(() => CreateDoctorUserDto)
-  user: CreateDoctorUserDto;
+  @Type(() => DoctorUserDetailsDto)
+  user: DoctorUserDetailsDto;
 
   @ApiProperty({ type: CreateDoctorCoreDto })
   @ValidateNested()
