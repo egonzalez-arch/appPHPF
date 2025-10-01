@@ -65,6 +65,7 @@ export class DoctorsController {
   @ApiOperation({ summary: 'Crear doctor + usuario' })
   @ApiResponse({ status: 201 })
  createWithUser(@Body() dto: CreateDoctorWithUserDto) {
+  console.log('Tipo real de dto.user:', dto.user?.constructor?.name);
   return this.service.createWithUser(dto);
 }
 

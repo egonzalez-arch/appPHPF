@@ -3,6 +3,7 @@ import { ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CreateDoctorCoreDto } from './create-doctor-core.dto';
 
+// Nombre único para el DTO de usuario en doctores (evita colisión con DTOs globales)
 export class DoctorUserDetailsDto {
   constructor() {
     console.log('Instanciando DoctorUserDetailsDto');
