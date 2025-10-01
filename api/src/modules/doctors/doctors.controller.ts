@@ -12,7 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
-import { CreateDoctorWithUserDto } from './dto/create-doctor-with-user.dto';
+import { CreateDoctorDto } from './dto/create-doctor.dto'; // Usar el nuevo DTO
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { UpdateDoctorWithUserDto } from './dto/update-doctor-with-user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,6 +26,9 @@ import {
   ApiParam,
   ApiResponse,
 } from '@nestjs/swagger';
+
+import { CreateDoctorWithUserDto } from './dto/create-doctor-with-user.dto';
+
 
 @ApiTags('Doctors')
 @ApiBearerAuth()
@@ -49,13 +52,22 @@ export class DoctorsController {
     return this.service.findOne(id);
   }
 
-  @Post('with-user')
+  @Post()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Crear doctor + usuario' })
+  @ApiOperation({ summary: 'Crear doctor (requiere userId)' })
   @ApiResponse({ status: 201 })
-  createWithUser(@Body() dto: CreateDoctorWithUserDto) {
-    return this.service.createWithUser(dto);
+  create(@Body() dto: CreateDoctorDto) {
+    return this.service.create(dto);
   }
+
+@Post('with-user')
+@Roles(UserRole.ADMIN)
+@ApiOperation({ summary: 'Crear doctor + usuario' })
+@ApiResponse({ status: 201 })
+createWithUser(@Body() dto: CreateDoctorWithUserDto) {
+  console.log('DTO recibido:', dto);
+  return this.service.createWithUser(dto);
+}
 
   @Patch(':id')
   @Roles(UserRole.ADMIN)

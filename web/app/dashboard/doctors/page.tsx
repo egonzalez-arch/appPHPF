@@ -9,11 +9,11 @@ import {
   filterDoctorsClient,
 } from '@/lib/api/api.doctors';
 import { useAuth } from '@/context/AuthContext';
-import DoctorsForm from '@/components/forms/DoctorsForm';
 import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { isActiveFromUser } from '@/lib/api/api';
 import { useCreateDoctorWithUser } from '@/hooks/useCreateDoctorWithUser';
+import DoctorsForm from '@/components/forms/DoctorsForm';
 
 export default function DoctorsPage() {
   const { user: sessionUser } = useAuth();
@@ -38,9 +38,10 @@ export default function DoctorsPage() {
     queryFn: fetchDoctors,
   });
 
-  // Cambiado: ahora usa el hook para crear doctor + usuario
-  const createMutation = useCreateDoctorWithUser();
+  // Crear (usuario + doctor) usando el hook clonado
+  const createCompositeMutation = useCreateDoctorWithUser();
 
+  // Actualizar solo doctor
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -60,6 +61,7 @@ export default function DoctorsPage() {
     },
   });
 
+  // Estado usuario (activo/inactivo)
   const statusMutation = useMutation({
     mutationFn: async (doc: DoctorEntity) => toggleDoctorActive(doc),
     onSuccess: () => refetch(),
@@ -80,7 +82,7 @@ export default function DoctorsPage() {
   );
 
   const submitting =
-    createMutation.isPending ||
+    createCompositeMutation.isPending ||
     updateMutation.isPending ||
     statusMutation.isPending;
 
@@ -129,9 +131,9 @@ export default function DoctorsPage() {
       {isLoading && <div>Cargando doctores...</div>}
       {isError && <div className="text-red-600">Error: {String(error)}</div>}
 
-      {createMutation.isError && (
+      {createCompositeMutation.isError && (
         <div className="text-red-600">
-          Error al crear: {createMutation.error?.message}
+          Error al crear: {(createCompositeMutation.error as any)?.message}
         </div>
       )}
       {updateMutation.isError && (
@@ -299,11 +301,16 @@ export default function DoctorsPage() {
               mode={editDoctor ? 'edit' : 'create'}
               initialDoctor={editDoctor || undefined}
               submitting={submitting}
-              onSubmit={(data) => {
+              onSubmit={(data: any) => {
                 if (editDoctor) {
                   updateMutation.mutate({ id: editDoctor.id, data });
                 } else {
-                  createMutation.mutate(data);
+                  // data.user & data.doctor
+                  if (data?.user && data?.doctor) {
+                    createCompositeMutation.mutate(data);
+                  } else {
+                    alert('Error: payload inválido del formulario.');
+                  }
                 }
               }}
               onCancel={() => {

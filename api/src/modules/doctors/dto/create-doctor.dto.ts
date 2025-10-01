@@ -1,20 +1,17 @@
-import { IsString, IsEmail, IsOptional } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsString, IsOptional } from 'class-validator';
 
 export class CreateDoctorDto {
-  @IsString()
-  firstName: string;
+  @IsUUID('4')
+  @IsNotEmpty()
+  userId: string;
 
-  @IsString()
-  lastName: string;
-
+  @IsNotEmpty()
   @IsString()
   specialty: string;
 
+  @IsNotEmpty()
   @IsString()
   license: string;
-
-  @IsEmail()
-  email: string;
 
   @IsOptional()
   @IsString()

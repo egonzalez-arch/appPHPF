@@ -4,19 +4,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import { CreateDoctorCoreDto } from './create-doctor-core.dto';
 
 export class CreateDoctorUserDto {
-  @ApiProperty({ example: 'Ana' })
+  @ApiProperty()
   firstName: string;
-
-  @ApiProperty({ example: 'García' })
+  @ApiProperty()
   lastName: string;
-
-  @ApiProperty({ example: 'ana@example.com' })
+  @ApiProperty()
   email: string;
-
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty()
   password: string;
-
-  @ApiProperty({ example: '+521555555555', required: false })
+  @ApiProperty({ required: false })
   phone?: string;
 }
 

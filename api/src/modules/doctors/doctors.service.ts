@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Doctor } from './doctors.entity';
 import { User, UserRole, UserStatus } from '../users/user.entity';
+import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { CreateDoctorWithUserDto } from './dto/create-doctor-with-user.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { UpdateDoctorWithUserDto } from './dto/update-doctor-with-user.dto';
@@ -55,7 +56,6 @@ export class DoctorsService {
       id: d.id,
       specialty: d.specialty,
       license: d.license,
-      // Para la respuesta puedes seguir normalizando a null si lo deseas
       bio: d.bio ?? null,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
@@ -78,6 +78,27 @@ export class DoctorsService {
     });
     if (!doc) throw new NotFoundException('Doctor not found');
     return this.sanitizeDoctor(doc)!;
+  }
+
+  async create(dto: CreateDoctorDto): Promise<SanitizedDoctor> {
+    // Validar que el usuario existe
+    const user = await this.userRepo.findOne({ where: { id: dto.userId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado para userId');
+
+    const doctor = this.doctorRepo.create({
+      userId: dto.userId,
+      specialty: dto.specialty.trim(),
+      license: dto.license.trim(),
+      bio: dto.bio?.trim() || undefined,
+    });
+    await this.doctorRepo.save(doctor);
+
+    const loaded = await this.doctorRepo.findOne({
+      where: { id: doctor.id },
+      relations: ['user'],
+    });
+    if (!loaded) throw new NotFoundException('Doctor not found after creation');
+    return this.sanitizeDoctor(loaded)!;
   }
 
   async createWithUser(dto: CreateDoctorWithUserDto): Promise<SanitizedDoctor> {
@@ -130,7 +151,7 @@ export class DoctorsService {
       return this.sanitizeDoctor(loaded)!;
     });
   }
-  
+
   async update(id: string, dto: UpdateDoctorDto): Promise<SanitizedDoctor> {
     const doctor = await this.doctorRepo.findOne({ where: { id } });
     if (!doctor) throw new NotFoundException('Doctor not found');
