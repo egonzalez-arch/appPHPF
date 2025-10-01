@@ -3,7 +3,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchDoctors,
-  createDoctorWithUser,
   updateDoctor,
   toggleDoctorActive,
   DoctorEntity,
@@ -14,6 +13,7 @@ import DoctorsForm from '@/components/forms/DoctorsForm';
 import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { isActiveFromUser } from '@/lib/api/api';
+import { useCreateDoctorWithUser } from '@/hooks/useCreateDoctorWithUser';
 
 export default function DoctorsPage() {
   const { user: sessionUser } = useAuth();
@@ -38,16 +38,8 @@ export default function DoctorsPage() {
     queryFn: fetchDoctors,
   });
 
-  const createMutation = useMutation({
-    mutationFn: createDoctorWithUser,
-    onSuccess: (d) => {
-      queryClient.setQueryData<DoctorEntity[]>(['doctors'], (old) =>
-        old ? [d, ...old] : [d],
-      );
-      setShowForm(false);
-      setEditDoctor(null);
-    },
-  });
+  // Cambiado: ahora usa el hook para crear doctor + usuario
+  const createMutation = useCreateDoctorWithUser();
 
   const updateMutation = useMutation({
     mutationFn: async ({
@@ -139,7 +131,7 @@ export default function DoctorsPage() {
 
       {createMutation.isError && (
         <div className="text-red-600">
-          Error al crear: {(createMutation.error as any)?.message}
+          Error al crear: {createMutation.error?.message}
         </div>
       )}
       {updateMutation.isError && (

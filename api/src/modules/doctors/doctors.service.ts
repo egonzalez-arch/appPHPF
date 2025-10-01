@@ -90,11 +90,13 @@ export class DoctorsService {
       const userRepository = manager.getRepository(User);
       const doctorRepository = manager.getRepository(Doctor);
 
+      // 1. Validar email único
       const exists = await userRepository.findOne({
         where: { email: userDto.email },
       });
       if (exists) throw new ConflictException('Email already in use');
 
+      // 2. Crear usuario con los campos requeridos en users.entity.ts
       const passwordHash = await bcrypt.hash(userDto.password, 10);
 
       const user = userRepository.create({
@@ -108,15 +110,16 @@ export class DoctorsService {
       });
       await userRepository.save(user);
 
+      // 3. Crear doctor, ligado al usuario recién creado
       const doctor = doctorRepository.create({
         userId: user.id,
         specialty: specialty.trim(),
         license: license.trim(),
-        // No asignamos null, solo string o undefined
         bio: bio && bio.trim() !== '' ? bio.trim() : undefined,
       });
       await doctorRepository.save(doctor);
 
+      // 4. Devolver el doctor con relación usuario (ya sanitizado)
       const loaded = await doctorRepository.findOne({
         where: { id: doctor.id },
         relations: ['user'],
@@ -127,7 +130,7 @@ export class DoctorsService {
       return this.sanitizeDoctor(loaded)!;
     });
   }
-
+  
   async update(id: string, dto: UpdateDoctorDto): Promise<SanitizedDoctor> {
     const doctor = await this.doctorRepo.findOne({ where: { id } });
     if (!doctor) throw new NotFoundException('Doctor not found');

@@ -74,8 +74,10 @@ export async function createDoctorWithUser(
       'Content-Type': 'application/json',
       'X-CSRF-Token': getCsrf(),
     },
+    
     body: JSON.stringify(data),
   });
+  console.log(data);
   const txt = await res.text();
   if (!res.ok) {
     throw new Error(parseErrorMessage(txt));
