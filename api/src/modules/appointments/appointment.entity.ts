@@ -1,17 +1,20 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Patient } from '../patients/patient.entity';
 import { Doctor } from '../doctors/doctors.entity';
 import { Clinic } from '../clinics/clinic.entity';
-
-export enum AppointmentStatus {
-  PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
-  CANCELLED = 'CANCELLED',
-  COMPLETED = 'COMPLETED',
-}
+import { AppointmentStatus } from './appointment-status-enum';
 
 @Entity('appointments')
-@Index(['doctorId', 'startAt', 'endAt'], { unique: true })
+@Index(['doctorId', 'startAt', 'endAt'])
 export class Appointment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -43,7 +46,11 @@ export class Appointment {
   @Column({ type: 'timestamp' })
   endAt: Date;
 
-  @Column({ type: 'enum', enum: AppointmentStatus, default: AppointmentStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: AppointmentStatus,
+    default: AppointmentStatus.PENDING,
+  })
   status: AppointmentStatus;
 
   @Column({ nullable: true })

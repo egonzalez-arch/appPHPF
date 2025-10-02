@@ -14,3 +14,5 @@ import { AuditEventsModule } from '../audit-events/audit-events.module';
   providers: [AppointmentService],
 })
 export class AppointmentsModule {}
+
+

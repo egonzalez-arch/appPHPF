@@ -1,6 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
-import { CreateAppointmentDto, UpdateAppointmentDto } from './dto';
+import {
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+  UpdateAppointmentStatusDto,
+} from './dto';
+import { AppointmentStatus } from './appointment-status-enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('appointments')
@@ -8,18 +23,41 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class AppointmentController {
   constructor(private readonly service: AppointmentService) {}
 
+  @Get()
+  findAll(
+    @Query('doctorId') doctorId?: string,
+    @Query('patientId') patientId?: string,
+    @Query('clinicId') clinicId?: string,
+    @Query('status') status?: AppointmentStatus,
+  ) {
+    return this.service.findAll({ doctorId, patientId, clinicId, status });
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.service.findOne(id); }
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
 
   @Post()
-  create(@Body() dto: CreateAppointmentDto) { return this.service.create(dto); }
+  create(@Body() dto: CreateAppointmentDto) {
+    return this.service.create(dto);
+  }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAppointmentDto) { return this.service.update(id, dto); }
+  update(@Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
+    return this.service.update(id, dto);
+  }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: string) { return this.service.updateStatus(id, status); }
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateAppointmentStatusDto,
+  ) {
+    return this.service.updateStatus(id, dto);
+  }
 
   @Delete(':id')
-  remove(@Param('id') id: string) { return this.service.remove(id); }
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
+  }
 }

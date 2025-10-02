@@ -2,19 +2,19 @@ import { IsUUID, IsDateString, IsString } from 'class-validator';
 
 export class CreateAppointmentDto {
   @IsUUID()
+  clinicId: string;
+
+  @IsUUID()
   patientId: string;
 
   @IsUUID()
   doctorId: string;
 
   @IsDateString()
-  date: string;
+  startAt: string; // ISO 8601 string
 
   @IsDateString()
-  startAt: Date;
-
-  @IsDateString()
-  endAt: Date; //
+  endAt: string;   // ISO 8601 string
 
   @IsString()
   reason: string;
