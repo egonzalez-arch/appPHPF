@@ -18,6 +18,7 @@ import {
 import { AppointmentStatus } from './appointment-status-enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
+
 @Controller('appointments')
 @UseGuards(JwtAuthGuard)
 export class AppointmentController {

@@ -16,4 +16,6 @@ export class AuditEventService {
   }
   findOne(id: string) { return this.repo.findOne({ where: { id } }); }
   create(dto: CreateAuditEventDto) { return this.repo.save(dto); }
+
+  
 }
