@@ -18,6 +18,8 @@ const items = [
   { href: "/dashboard/patients", label: "Pacientes", icon: <FaUsers size={18} /> },
   { href: "/dashboard/doctors", label: "Doctores", icon: <FaUserMd size={18} /> },
   { href: "/dashboard/users", label: "Usuarios", icon: <FaUserMd size={18} /> },
+  { href: "/dashboard/companies", label: "Empresas", icon: <FaUserMd size={18} /> },
+  { href: "/dashboard/clinics", label: "Clínicas", icon: <FaUserMd size={18} /> },
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {
