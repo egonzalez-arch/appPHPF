@@ -17,12 +17,16 @@ import {
 } from './dto';
 import { AppointmentStatus } from './appointment-status-enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-
+import { AppointmentPermissionsGuard } from './appointment-permissions.guard';
+import { AuditEventService } from '../audit-events/audit-event.service';
 
 @Controller('appointments')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AppointmentPermissionsGuard)
 export class AppointmentController {
-  constructor(private readonly service: AppointmentService) {}
+  constructor(
+    private readonly service: AppointmentService,
+    private readonly audit: AuditEventService,
+  ) {}
 
   @Get()
   findAll(
@@ -37,6 +41,11 @@ export class AppointmentController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Get(':id/audit')
+  auditTrail(@Param('id') id: string) {
+    return this.audit.findByEntity('Appointment', id);
   }
 
   @Post()

@@ -1,11 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_URL } from '@/lib/api/api';
 
-interface ClinicLite {
-  id: string;
-  name: string;
-}
-
 function getCsrf() {
   if (typeof document === 'undefined') return '';
   return (
@@ -13,6 +8,11 @@ function getCsrf() {
       .split('; ')
       .find(r => r.startsWith('csrf_token='))?.split('=')[1] || ''
   );
+}
+
+interface ClinicLite {
+  id: string;
+  name: string;
 }
 
 async function fetchClinicsLite(): Promise<ClinicLite[]> {

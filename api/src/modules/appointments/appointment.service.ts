@@ -5,14 +5,15 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Appointment } from './appointment.entity';
-import { Repository } from 'typeorm';
+  import { Repository } from 'typeorm';
 import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
+  UpdateAppointmentStatusDto,
 } from './dto';
 import { AppointmentStatus } from './appointment-status-enum';
-import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { AuditEventService } from '../audit-events/audit-event.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface AppointmentFilters {
   doctorId?: string;
@@ -27,6 +28,7 @@ export class AppointmentService {
     @InjectRepository(Appointment)
     private repo: Repository<Appointment>,
     private auditService: AuditEventService,
+    private notifications: NotificationsService,
   ) {}
 
   async findOne(id: string): Promise<Appointment> {
@@ -37,20 +39,10 @@ export class AppointmentService {
 
   async findAll(filters: AppointmentFilters = {}): Promise<Appointment[]> {
     const qb = this.repo.createQueryBuilder('a');
-
-    if (filters.doctorId) {
-      qb.andWhere('a.doctorId = :doctorId', { doctorId: filters.doctorId });
-    }
-    if (filters.patientId) {
-      qb.andWhere('a.patientId = :patientId', { patientId: filters.patientId });
-    }
-    if (filters.clinicId) {
-      qb.andWhere('a.clinicId = :clinicId', { clinicId: filters.clinicId });
-    }
-    if (filters.status) {
-      qb.andWhere('a.status = :status', { status: filters.status });
-    }
-
+    if (filters.doctorId) qb.andWhere('a.doctorId = :doctorId', { doctorId: filters.doctorId });
+    if (filters.patientId) qb.andWhere('a.patientId = :patientId', { patientId: filters.patientId });
+    if (filters.clinicId) qb.andWhere('a.clinicId = :clinicId', { clinicId: filters.clinicId });
+    if (filters.status) qb.andWhere('a.status = :status', { status: filters.status });
     qb.orderBy('a.startAt', 'DESC');
     return qb.getMany();
   }
@@ -77,9 +69,7 @@ export class AppointmentService {
       .getOne();
 
     if (overlap) {
-      throw new BadRequestException(
-        'Doctor already has overlapping appointment',
-      );
+      throw new BadRequestException('Doctor already has overlapping appointment');
     }
 
     const appointment = this.repo.create({
@@ -91,9 +81,9 @@ export class AppointmentService {
     const result = await this.repo.save(appointment);
 
     await this.auditService.create({
-      userId: dto.patientId, // Ajustar según tu lógica (p.ej. usuario autenticado)
+      userId: dto.patientId,
       actorUserId: dto.patientId,
-      timestamp: new Date(),
+      timestamp: new Date() as any,
       description: 'Creación de cita',
       action: 'create',
       entity: 'Appointment',
@@ -108,13 +98,23 @@ export class AppointmentService {
       },
     });
 
+    await this.notifications.notifyAppointmentCreated({
+      appointmentId: result.id,
+      clinicId: dto.clinicId,
+      doctorId: dto.doctorId,
+      patientId: dto.patientId,
+      startAt: start,
+      endAt: end,
+      reason: dto.reason,
+      action: 'created',
+    });
+
     return result;
   }
 
   async update(id: string, dto: UpdateAppointmentDto): Promise<Appointment> {
     const appt = await this.findOne(id);
 
-    // Reprogramación: si se cambian ambos tiempos (o uno) validamos
     const nextStart = dto.startAt ? new Date(dto.startAt) : appt.startAt;
     const nextEnd = dto.endAt ? new Date(dto.endAt) : appt.endAt;
 
@@ -122,7 +122,6 @@ export class AppointmentService {
       if (nextEnd <= nextStart) {
         throw new BadRequestException('endAt must be after startAt');
       }
-
       const overlap = await this.repo
         .createQueryBuilder('a')
         .where('a.doctorId = :doctorId', {
@@ -149,18 +148,77 @@ export class AppointmentService {
     });
 
     await this.repo.save(appt);
+
+    await this.auditService.create({
+      userId: appt.patientId,
+      actorUserId: appt.patientId,
+      timestamp: new Date() as any,
+      description: 'Actualización de cita',
+      action: 'update',
+      entity: 'Appointment',
+      entityId: appt.id,
+      metadataJson: { changes: dto },
+    });
+
     return appt;
   }
 
   async updateStatus(id: string, dto: UpdateAppointmentStatusDto) {
     const appt = await this.findOne(id);
+    const oldStatus = appt.status;
     appt.status = dto.status;
     await this.repo.save(appt);
+
+    await this.auditService.create({
+      userId: appt.patientId,
+      actorUserId: appt.patientId,
+      timestamp: new Date() as any,
+      description: `Cambio estado ${oldStatus} -> ${dto.status}`,
+      action: 'status-change',
+      entity: 'Appointment',
+      entityId: appt.id,
+      metadataJson: { oldStatus, newStatus: dto.status },
+    });
+
+    if (dto.status === AppointmentStatus.CANCELLED) {
+      await this.notifications.notifyCancelled({
+        appointmentId: appt.id,
+        clinicId: appt.clinicId,
+        doctorId: appt.doctorId,
+        patientId: appt.patientId,
+        startAt: appt.startAt,
+        endAt: appt.endAt,
+        status: appt.status,
+        action: 'cancelled',
+      });
+    } else {
+      await this.notifications.notifyStatusChanged({
+        appointmentId: appt.id,
+        clinicId: appt.clinicId,
+        doctorId: appt.doctorId,
+        patientId: appt.patientId,
+        startAt: appt.startAt,
+        endAt: appt.endAt,
+        status: appt.status,
+        action: 'status-changed',
+      });
+    }
+
     return appt;
   }
 
   async remove(id: string): Promise<void> {
     const appt = await this.findOne(id);
     await this.repo.remove(appt);
+    await this.auditService.create({
+      userId: appt.patientId,
+      actorUserId: appt.patientId,
+      timestamp: new Date() as any,
+      description: 'Eliminación de cita',
+      action: 'delete',
+      entity: 'Appointment',
+      entityId: appt.id,
+      metadataJson: null,
+    });
   }
 }

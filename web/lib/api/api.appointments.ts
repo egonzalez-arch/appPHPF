@@ -16,16 +16,12 @@ export interface AppointmentEntity {
   clinicId: string;
   patientId: string;
   doctorId: string;
-  startAt: string;   // ISO
-  endAt: string;     // ISO
+  startAt: string;
+  endAt: string;
   status: AppointmentStatus;
   reason?: string;
   createdAt?: string;
   updatedAt?: string;
-  // Si el backend en futuro incluye relaciones pobladas, se pueden añadir:
-  // clinic?: { id: string; name: string };
-  // doctor?: { id: string; user?: { firstName?: string; lastName?: string } };
-  // patient?: { id: string; user?: { firstName?: string; lastName?: string } };
 }
 
 export interface CreateAppointmentInput {
@@ -44,10 +40,6 @@ export interface UpdateAppointmentInput {
   startAt?: string;
   endAt?: string;
   reason?: string;
-}
-
-export interface UpdateAppointmentStatusInput {
-  status: AppointmentStatus;
 }
 
 function parseErr(txt: string) {
