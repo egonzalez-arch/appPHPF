@@ -7,11 +7,13 @@ import {
   Index,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToOne,
 } from 'typeorm';
 import { Patient } from '../patients/patient.entity';
 import { Doctor } from '../doctors/doctors.entity';
 import { Clinic } from '../clinics/clinic.entity';
 import { AppointmentStatus } from './appointment-status-enum';
+import { Encounter } from '../encounters/encounter.entity'; // <-- AGREGAR ESTA LÍNEA
 
 @Entity('appointments')
 @Index(['doctorId', 'startAt', 'endAt'])
@@ -55,6 +57,13 @@ export class Appointment {
 
   @Column({ nullable: true })
   reason: string;
+
+  // <----- AGREGAR ESTAS LÍNEAS PARA LA RELACIÓN 1:1 CON ENCOUNTER ----->
+
+  @OneToOne(() => Encounter, encounter => encounter.appointment, { nullable: true })
+  encounter: Encounter;
+
+  // <------------------- FIN DEL BLOQUE AGREGADO ----------------------->
 
   @CreateDateColumn()
   createdAt: Date;

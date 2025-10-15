@@ -11,9 +11,14 @@ export class EncounterService {
   findOne(id: string) { return this.repo.findOne({ where: { id } }); }
 
   async create(dto: CreateEncounterDto) {
-    // Must be tied to appointment or valid patient-doctor pair
-    if (!dto.appointmentId && !(dto.patientId && dto.doctorId)) {
-      throw new BadRequestException('Encounter must reference appointment or valid patient-doctor');
+    // Ahora appointmentId es obligatorio
+    if (!dto.appointmentId) {
+      throw new BadRequestException('Encounter must reference an appointment');
+    }
+    // Opcional: verifica que no exista un encounter para ese appointmentId
+    const exists = await this.repo.findOne({ where: { appointmentId: dto.appointmentId } });
+    if (exists) {
+      throw new BadRequestException('This appointment already has an encounter assigned');
     }
     return this.repo.save(dto);
   }

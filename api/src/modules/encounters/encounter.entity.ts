@@ -1,44 +1,60 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+} from 'typeorm';
 import { Appointment } from '../appointments/appointment.entity';
-import { Patient } from '../patients/patient.entity';
-import { Doctor } from '../doctors/doctors.entity';
-import { Clinic } from '../clinics/clinic.entity';
+import { User } from '../users/user.entity'; // Ajusta si tu entidad usuario tiene otro nombre
+
+export enum EncounterStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+//export { EncounterStatus };
 
 @Entity('encounters')
 export class Encounter {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ nullable: true })
+  // Relación obligatoria 1:1 con Appointment
+  @Column()
   appointmentId: string;
 
-  @ManyToOne(() => Appointment, { nullable: true })
+  @OneToOne(() => Appointment)
   @JoinColumn({ name: 'appointmentId' })
   appointment: Appointment;
 
-  @Column()
-  patientId: string;
-
-  @ManyToOne(() => Patient)
-  @JoinColumn({ name: 'patientId' })
-  patient: Patient;
-
-  @Column()
-  doctorId: string;
-
-  @ManyToOne(() => Doctor)
-  @JoinColumn({ name: 'doctorId' })
-  doctor: Doctor;
-
-  @Column()
-  clinicId: string;
-
-  @ManyToOne(() => Clinic)
-  @JoinColumn({ name: 'clinicId' })
-  clinic: Clinic;
+  @Column({ type: 'timestamp', nullable: true })
+  encounterDate?: Date; // Si quieres registrar hora real de atención
 
   @Column({ nullable: true })
-  notes: string;
+  encounterType?: string; // Ej: consulta, urgencia, seguimiento
+
+  @Column({ nullable: true })
+  reason?: string; // Motivo de consulta
+
+  @Column({ nullable: true })
+  diagnosis?: string; // Diagnóstico principal
+
+  @Column({ nullable: true })
+  notes?: string; // Notas clínicas
+
+  @Column({ type: 'enum', enum: EncounterStatus, default: EncounterStatus.IN_PROGRESS })
+  status: EncounterStatus;
+
+  @Column({ nullable: true })
+  createdBy?: string; // userId de quien registra
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'createdBy' })
+  creator?: User;
 
   @CreateDateColumn()
   createdAt: Date;

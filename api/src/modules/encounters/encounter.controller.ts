@@ -2,21 +2,40 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@n
 import { EncounterService } from './encounter.service';
 import { CreateEncounterDto, UpdateEncounterDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
 
+@ApiTags('encounters')
 @Controller('encounters')
 @UseGuards(JwtAuthGuard)
 export class EncounterController {
   constructor(private readonly service: EncounterService) {}
 
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.service.findOne(id); }
+  @ApiOperation({ summary: 'Obtener un encuentro por ID' })
+  @ApiParam({ name: 'id', description: 'ID del encuentro' })
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
 
   @Post()
-  create(@Body() dto: CreateEncounterDto) { return this.service.create(dto); }
+  @ApiOperation({ summary: 'Crear un nuevo encuentro' })
+  @ApiBody({ type: CreateEncounterDto })
+  create(@Body() dto: CreateEncounterDto) {
+    return this.service.create(dto);
+  }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateEncounterDto) { return this.service.update(id, dto); }
+  @ApiOperation({ summary: 'Actualizar un encuentro existente' })
+  @ApiParam({ name: 'id', description: 'ID del encuentro' })
+  @ApiBody({ type: UpdateEncounterDto })
+  update(@Param('id') id: string, @Body() dto: UpdateEncounterDto) {
+    return this.service.update(id, dto);
+  }
 
   @Delete(':id')
-  remove(@Param('id') id: string) { return this.service.remove(id); }
+  @ApiOperation({ summary: 'Eliminar un encuentro' })
+  @ApiParam({ name: 'id', description: 'ID del encuentro' })
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
+  }
 }
