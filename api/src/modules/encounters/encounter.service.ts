@@ -8,6 +8,14 @@ import { CreateEncounterDto, UpdateEncounterDto } from './dto';
 export class EncounterService {
   constructor(@InjectRepository(Encounter) private repo: Repository<Encounter>) {}
 
+  findAll(filter?: { appointmentId?: string; status?: string; createdBy?: string }) {
+    const where: any = {};
+    if (filter?.appointmentId) where.appointmentId = filter.appointmentId;
+    if (filter?.status) where.status = filter.status;
+    if (filter?.createdBy) where.createdBy = filter.createdBy;
+    return this.repo.find({ where });
+  }
+
   findOne(id: string) { return this.repo.findOne({ where: { id } }); }
 
   async create(dto: CreateEncounterDto) {

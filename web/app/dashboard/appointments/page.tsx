@@ -18,6 +18,10 @@ import { useClinicsLite } from '@/hooks/useClinicsLite';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import { AppointmentCalendar } from '@/components/appointments/AppointmentCalendar';
 import { AppointmentAuditModal } from '@/components/appointments/AppointmentAuditModal';
+import { useRouter } from 'next/navigation';
+
+// NUEVO: para detectar si ya hay encuentro asociado a la cita
+import { fetchEncounters, EncounterEntity as Encounter } from '@/lib/api/api.encounters';
 
 type PendingCreate = {
   clinicId: string;
@@ -29,6 +33,7 @@ type PendingCreate = {
 };
 
 export default function AppointmentsPage() {
+  const router = useRouter();
   const { user: sessionUser } = useAuth();
 
   const [showForm, setShowForm] = useState(false);
@@ -56,6 +61,9 @@ export default function AppointmentsPage() {
   // Prefill times for create (when coming from calendar selection)
   const [prefillStart, setPrefillStart] = useState<Date | null>(null);
   const [prefillEnd, setPrefillEnd] = useState<Date | null>(null);
+
+  // NUEVO: mapa de encuentros por appointmentId para decidir CTA (Iniciar/Actualizar)
+  const [encountersByAppt, setEncountersByAppt] = useState<Record<string, Encounter>>({});
 
   const debounced = useDebouncedValue(rawSearch, 300);
   const search = debounced.trim().toLowerCase();
@@ -102,6 +110,19 @@ export default function AppointmentsPage() {
       return () => clearTimeout(t);
     }
   }, [successMessage]);
+
+  // NUEVO: cargar encuentros para mapear por appointmentId
+  useEffect(() => {
+    fetchEncounters()
+      .then((list) => {
+        const map: Record<string, Encounter> = {};
+        for (const e of list) {
+          if (e.appointmentId) map[e.appointmentId] = e;
+        }
+        setEncountersByAppt(map);
+      })
+      .catch(() => {});
+  }, []);
 
   function handleSubmit(data: any) {
     if (editAppt) {
@@ -217,6 +238,31 @@ export default function AppointmentsPage() {
 
   function handleSoftFail(msg: string) {
     setSuccessMessage(msg);
+  }
+
+  // NUEVO: CTA de Encuentro que navega a la página de gestión
+  function renderEncounterCTA(appt: AppointmentEntity) {
+    const enc = encountersByAppt[appt.id];
+    if (enc) {
+      return (
+        <button
+          className="px-3 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 shadow"
+          disabled={submitting}
+          onClick={() => router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`)}
+        >
+          Actualizar encuentro
+        </button>
+      );
+    }
+    return (
+      <button
+        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
+        disabled={submitting}
+        onClick={() => router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`)}
+      >
+        Iniciar encuentro
+      </button>
+    );
   }
 
   return (
@@ -392,13 +438,14 @@ export default function AppointmentsPage() {
                   <th className="px-4 py-2 border-b">Fin</th>
                   <th className="px-4 py-2 border-b">Estado</th>
                   <th className="px-4 py-2 border-b">Motivo</th>
+                  <th className="px-4 py-2 border-b">Encuentro</th>
                   <th className="px-4 py-2 border-b">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-gray-500">
+                    <td colSpan={9} className="text-center py-8 text-gray-500">
                       {search ||
                       doctorFilter ||
                       patientFilter ||
@@ -422,6 +469,9 @@ export default function AppointmentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2">{a.reason || '-'}</td>
+                    <td className="px-4 py-2">
+                      {renderEncounterCTA(a)}
+                    </td>
                     <td className="px-4 py-2 flex gap-2 flex-wrap">
                       <button
                         className="text-teal-600 hover:underline"
@@ -476,77 +526,100 @@ export default function AppointmentsPage() {
                   : 'No hay citas.'}
               </div>
             )}
-            {filtered.map((a) => (
-              <div
-                key={a.id}
-                className="border rounded shadow p-4 bg-white space-y-2"
-              >
-                <div className="font-semibold text-lg">
-                  {findClinicName(a.clinicId)}
+            {filtered.map((a) => {
+              const enc = encountersByAppt[a.id];
+              return (
+                <div
+                  key={a.id}
+                  className="border rounded shadow p-4 bg-white space-y-2"
+                >
+                  <div className="font-semibold text-lg">
+                    {findClinicName(a.clinicId)}
+                  </div>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <div>
+                      <span className="font-medium">Doctor:</span>{' '}
+                      {findDoctorName(a.doctorId)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Paciente:</span>{' '}
+                      {findPatientName(a.patientId)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Inicio:</span>{' '}
+                      {shortDate(a.startAt)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Fin:</span>{' '}
+                      {shortDate(a.endAt)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Estado:</span>{' '}
+                      {labelForStatus(a.status)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Motivo:</span>{' '}
+                      {a.reason || '-'}
+                    </div>
+                  </div>
+                  {/* CTA destacado en móvil */}
+                  <div className="pt-2">
+                    {enc ? (
+                      <button
+                        className="w-full px-3 py-2 rounded bg-amber-600 text-white hover:bg-amber-700 shadow"
+                        disabled={submitting}
+                        onClick={() => router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`)}
+                      >
+                        Actualizar encuentro
+                      </button>
+                    ) : (
+                      <button
+                        className="w-full px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
+                        disabled={submitting}
+                        onClick={() => router.push(`/dashboard/encounters/manage?appointmentId=${a.id}`)}
+                      >
+                        Iniciar encuentro
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-4 mt-2 flex-wrap">
+                    <button
+                      className="text-teal-600 hover:underline"
+                      onClick={() => {
+                        setEditAppt(a);
+                        setShowForm(true);
+                        setPrefillStart(null);
+                        setPrefillEnd(null);
+                      }}
+                      disabled={submitting}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      className="text-indigo-600 hover:underline"
+                      onClick={() => openStatusModal(a)}
+                      disabled={submitting}
+                    >
+                      Estado
+                    </button>
+                    <button
+                      className="text-gray-600 hover:underline"
+                      onClick={() => setAuditApptId(a.id)}
+                      disabled={submitting}
+                    >
+                      Historial
+                    </button>
+                    <button
+                      className="text-red-600 hover:underline"
+                      onClick={() => setConfirmDelete(a)}
+                      disabled={submitting}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-700 space-y-1">
-                  <div>
-                    <span className="font-medium">Doctor:</span>{' '}
-                    {findDoctorName(a.doctorId)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Paciente:</span>{' '}
-                    {findPatientName(a.patientId)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Inicio:</span>{' '}
-                    {shortDate(a.startAt)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Fin:</span>{' '}
-                    {shortDate(a.endAt)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Estado:</span>{' '}
-                    {labelForStatus(a.status)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Motivo:</span>{' '}
-                    {a.reason || '-'}
-                  </div>
-                </div>
-                <div className="flex gap-4 mt-2 flex-wrap">
-                  <button
-                    className="text-teal-600 hover:underline"
-                    onClick={() => {
-                      setEditAppt(a);
-                      setShowForm(true);
-                      setPrefillStart(null);
-                      setPrefillEnd(null);
-                    }}
-                    disabled={submitting}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className="text-indigo-600 hover:underline"
-                    onClick={() => openStatusModal(a)}
-                    disabled={submitting}
-                  >
-                    Estado
-                  </button>
-                  <button
-                    className="text-gray-600 hover:underline"
-                    onClick={() => setAuditApptId(a.id)}
-                    disabled={submitting}
-                  >
-                    Historial
-                  </button>
-                  <button
-                    className="text-red-600 hover:underline"
-                    onClick={() => setConfirmDelete(a)}
-                    disabled={submitting}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

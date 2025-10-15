@@ -1,14 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { VitalsService } from './vitals.service';
 import { CreateVitalsDto, UpdateVitalsDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('vitals')
 @Controller('vitals')
 @UseGuards(JwtAuthGuard)
 export class VitalsController {
   constructor(private readonly service: VitalsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener todos los signos vitales (opcional: filtrar por encounter)' })
+  @ApiQuery({ name: 'encounterId', required: false, type: String, description: 'Filtrar por encounterId' })
+  findAll(@Query('encounterId') encounterId?: string) {
+    return this.service.findAll({ encounterId });
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener datos de signos vitales por ID' })

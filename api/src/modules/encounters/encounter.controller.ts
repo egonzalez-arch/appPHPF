@@ -1,14 +1,23 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { EncounterService } from './encounter.service';
 import { CreateEncounterDto, UpdateEncounterDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('encounters')
 @Controller('encounters')
 @UseGuards(JwtAuthGuard)
 export class EncounterController {
   constructor(private readonly service: EncounterService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener listado de todos los encuentros' })
+  @ApiQuery({ name: 'appointmentId', required: false, type: String, description: 'Filtrar por appointmentId' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: 'Filtrar por estado' })
+  @ApiQuery({ name: 'createdBy', required: false, type: String, description: 'Filtrar por usuario creador' })
+  findAll(@Query('appointmentId') appointmentId?: string, @Query('status') status?: string, @Query('createdBy') createdBy?: string) {
+    return this.service.findAll({ appointmentId, status, createdBy });
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un encuentro por ID' })

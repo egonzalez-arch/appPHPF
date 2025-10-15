@@ -1,6 +1,9 @@
 'use client';
 import { useAppointmentAudit } from '@/hooks/useAppointmentAudit';
 import { AppointmentEntity, AppointmentStatus } from '@/lib/api/api.appointments';
+import { useDoctorsLite } from '@/hooks/useDoctorsLite';
+import { usePatientsLite } from '@/hooks/usePatientsLite';
+import { useClinicsLite } from '@/hooks/useClinicsLite';
 
 interface Props {
   appointment: AppointmentEntity | null;
@@ -8,6 +11,10 @@ interface Props {
   onEdit: (appt: AppointmentEntity) => void;
   onChangeStatus: (appt: AppointmentEntity, status: AppointmentStatus) => void;
   loadingStatus?: boolean;
+
+  // CTA para abrir la gestión de encuentro (iniciar/actualizar)
+  onOpenEncounter?: (appt: AppointmentEntity) => void;
+  encounterCtaLabel?: string; // 'Iniciar encuentro' | 'Actualizar encuentro'
 }
 
 export function AppointmentHistoryPanel({
@@ -16,10 +23,17 @@ export function AppointmentHistoryPanel({
   onEdit,
   onChangeStatus,
   loadingStatus,
+  onOpenEncounter,
+  encounterCtaLabel = 'Iniciar encuentro',
 }: Props) {
   const { data, isLoading, isError, error } = useAppointmentAudit(
     appointment?.id || undefined,
   );
+
+  // Cargar catálogos "lite" para mostrar nombres amigables
+  const { data: doctors } = useDoctorsLite(true);
+  const { data: patients } = usePatientsLite(true);
+  const { data: clinics } = useClinicsLite(true);
 
   if (!appointment) return null;
 
@@ -36,6 +50,22 @@ export function AppointmentHistoryPanel({
       default:
         return s;
     }
+  }
+
+  function clinicName(id: string) {
+    return clinics?.find(c => c.id === id)?.name || id;
+  }
+
+  function doctorName(id: string) {
+    const d = doctors?.find(x => x.id === id);
+    const full = [d?.user?.firstName, d?.user?.lastName].filter(Boolean).join(' ');
+    return full || id;
+  }
+
+  function patientName(id: string) {
+    const p = patients?.find(x => x.id === id);
+    const full = [p?.user?.firstName, p?.user?.lastName].filter(Boolean).join(' ');
+    return full || id;
   }
 
   function humanEvent(e: any) {
@@ -80,20 +110,19 @@ export function AppointmentHistoryPanel({
 
         <div className="p-4 space-y-3 text-sm overflow-y-auto">
           <div>
-            <span className="font-medium">Clínica:</span> {appointment.clinicId}
+            <span className="font-medium">Clínica:</span> {clinicName(appointment.clinicId)}
           </div>
           <div>
-            <span className="font-medium">Doctor:</span> {appointment.doctorId}
+            <span className="font-medium">Doctor:</span> {doctorName(appointment.doctorId)}
           </div>
           <div>
-            <span className="font-medium">Paciente:</span>{' '}
-            {appointment.patientId}
+            <span className="font-medium">Paciente:</span> {patientName(appointment.patientId)}
           </div>
           <div>
             <span className="font-medium">Inicio:</span>{' '}
             {new Date(appointment.startAt).toLocaleString()}
           </div>
-            <div>
+          <div>
             <span className="font-medium">Fin:</span>{' '}
             {new Date(appointment.endAt).toLocaleString()}
           </div>
@@ -131,6 +160,15 @@ export function AppointmentHistoryPanel({
               <option value="CANCELLED">Cancelada</option>
               <option value="COMPLETED">Completada</option>
             </select>
+
+            {onOpenEncounter && (
+              <button
+                onClick={() => onOpenEncounter(appointment)}
+                className="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                {encounterCtaLabel}
+              </button>
+            )}
           </div>
 
           <hr className="my-3" />

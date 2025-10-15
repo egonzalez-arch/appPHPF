@@ -21,6 +21,7 @@ const items = [
   { href: "/dashboard/companies", label: "Empresas", icon: <FaUserMd size={18} /> },
   { href: "/dashboard/clinics", label: "Clínicas", icon: <FaUserMd size={18} /> },
   { href: "/dashboard/appointments", label: "Citas", icon: <FaUserMd size={18} /> },
+  { href: "/dashboard/encounters", label: "Consultas", icon: <FaUserMd size={18} /> },
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {

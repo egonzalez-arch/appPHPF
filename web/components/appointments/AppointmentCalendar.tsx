@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import interactionPlugin from '@fullcalendar/interaction';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -9,6 +9,10 @@ import { AppointmentEntity, AppointmentStatus } from '@/lib/api/api.appointments
 import { AppointmentHistoryPanel } from './AppointmentHistoryPanel';
 import { useUpdateAppointment } from '@/hooks/useAppointments';
 import { useUpdateAppointmentStatus } from '@/hooks/useAppointments';
+import { useRouter } from 'next/navigation';
+
+// NUEVO: para mapear si existe encounter por appointment
+import { fetchEncounters, EncounterEntity } from '@/lib/api/api.encounters';
 
 const FullCalendar = dynamic(() => import('@fullcalendar/react'), {
   ssr: false,
@@ -33,6 +37,25 @@ export function AppointmentCalendar({
   const updateMut = useUpdateAppointment();
   const statusMut = useUpdateAppointmentStatus();
   const calendarRef = useRef<any>(null);
+  const router = useRouter();
+
+  // NUEVO: encounters por appointmentId
+  const [encountersByAppt, setEncountersByAppt] = useState<Record<string, EncounterEntity>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    fetchEncounters()
+      .then(list => {
+        if (!mounted) return;
+        const map: Record<string, EncounterEntity> = {};
+        for (const e of list) {
+          if (e.appointmentId) map[e.appointmentId] = e;
+        }
+        setEncountersByAppt(map);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   const events = useMemo(
     () =>
@@ -83,6 +106,16 @@ export function AppointmentCalendar({
       const aEnd = new Date(a.endAt).getTime();
       return aStart < end.getTime() && aEnd > start.getTime();
     });
+  }
+
+  // NUEVO: abrir manage encounter (iniciar/actualizar)
+  function openEncounterManage(appt: AppointmentEntity) {
+    const enc = encountersByAppt[appt.id];
+    if (enc) {
+      router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`);
+    } else {
+      router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`);
+    }
   }
 
   return (
@@ -180,6 +213,11 @@ export function AppointmentCalendar({
               },
             );
           }}
+          // NUEVO: CTA para encuentro desde el panel
+          onOpenEncounter={(a) => openEncounterManage(a)}
+          encounterCtaLabel={
+            encountersByAppt[selectedDetails.id] ? 'Actualizar encuentro' : 'Iniciar encuentro'
+          }
         />
       )}
     </div>

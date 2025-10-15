@@ -8,6 +8,12 @@ import { CreateVitalsDto, UpdateVitalsDto } from './dto';
 export class VitalsService {
   constructor(@InjectRepository(Vitals) private repo: Repository<Vitals>) {}
 
+   findAll(filter?: { encounterId?: string }) {
+    const where: any = {};
+    if (filter?.encounterId) where.encounterId = filter.encounterId;
+    return this.repo.find({ where });
+  }
+
   findOne(id: string) { return this.repo.findOne({ where: { id } }); }
   create(dto: CreateVitalsDto) { 
     dto.bmi = dto.weight / ((dto.height / 100) ** 2); // BMI calculation
