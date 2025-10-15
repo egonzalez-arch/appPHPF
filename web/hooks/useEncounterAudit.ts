@@ -19,7 +19,7 @@ export interface EncounterAuditEvent {
   encounterId: string;
   action: EncounterAuditAction;
   createdAt: string;
-  metadataJson?: any;
+  metadataJson?: Record<string, unknown>;
 }
 
 export function useEncounterAudit(encounterId?: string) {
