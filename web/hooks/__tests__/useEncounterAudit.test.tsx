@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEncounterAudit } from '../useEncounterAudit';
-import React from 'react';
+import * as React from 'react';
 
 // Mock fetch globally
 global.fetch = jest.fn();

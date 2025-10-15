@@ -153,8 +153,8 @@ export default function ManageEncounterPage() {
       } else {
         alert('No hay referencia válida de encuentro o cita para guardar.');
       }
-    } catch (e: any) {
-      alert(e?.message || 'Error guardando encuentro');
+    } catch (e: unknown) {
+      alert((e as Error)?.message || 'Error guardando encuentro');
     } finally {
       setSaving(false);
     }
@@ -186,8 +186,8 @@ export default function ManageEncounterPage() {
 
       // reset parciales
       setVHR(''); setVBP(''); setVSpO2('');
-    } catch (e: any) {
-      alert(e?.message || 'Error guardando signos vitales');
+    } catch (e: unknown) {
+      alert((e as Error)?.message || 'Error guardando signos vitales');
     }
   }
 
