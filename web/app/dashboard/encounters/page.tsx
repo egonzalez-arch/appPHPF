@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   fetchEncounters,
   createEncounter,
@@ -11,9 +12,7 @@ import {
   VitalsEntity,
   CreateVitalsInput,
 } from '@/lib/api/api.vitals';
-import { fetchAppointments, AppointmentEntity } from '@/lib/api/api.appointments';
-import { fetchPatients, Patient } from '@/lib/api/api';
-import { fetchUsers, UserEntity } from '@/lib/api/api.users';
+import { fetchPatients, Patient } from '@/lib/api/api'; // Reutiliza tu API central
 import dynamic from 'next/dynamic';
 
 const FullCalendar = dynamic(() => import('@fullcalendar/react'), { ssr: false });
@@ -21,6 +20,29 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
+// Hook para obtener pacientes y helper para nombre
+function usePatientsLite() {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPatients()
+      .then(setPatients)
+      .finally(() => setLoading(false));
+  }, []);
+
+  function getPatientName(patientId?: string) {
+    if (!patientId) return 'Paciente';
+    const p = patients.find(p => p.id === patientId);
+    if (p && p.user) return [p.user.firstName, p.user.lastName].filter(Boolean).join(' ');
+    if (p && (p.firstName || p.lastName)) return [p.firstName, p.lastName].filter(Boolean).join(' ');
+    return patientId;
+  }
+
+  return { patients, loading, getPatientName };
+}
+
+// Helper para mostrar fecha legible
 function formatDate(iso?: string) {
   if (!iso) return '-';
   try {
@@ -35,59 +57,30 @@ function formatDate(iso?: string) {
 }
 
 export default function EncountersPage() {
+  const router = useRouter();
+
   const [encounters, setEncounters] = useState<EncounterEntity[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentEntity[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [users, setUsers] = useState<UserEntity[]>([]);
   const [selectedEncounter, setSelectedEncounter] = useState<EncounterEntity | null>(null);
   const [vitals, setVitals] = useState<VitalsEntity[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Vitals form state
   const [formVitals, setFormVitals] = useState<CreateVitalsInput | null>(null);
   const [savingVitals, setSavingVitals] = useState(false);
   const [showVitalsForm, setShowVitalsForm] = useState(false);
+
+  // Vista tabla o calendario
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
-  // Fetch all needed data on mount
+  // Hook para pacientes
+  const { patients, getPatientName } = usePatientsLite();
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      fetchEncounters(),
-      fetchAppointments(),
-      fetchPatients(),
-      fetchUsers(),
-    ])
-      .then(([encs, appts, pats, usrs]) => {
-        setEncounters(encs);
-        setAppointments(appts);
-        setPatients(pats);
-        setUsers(usrs);
-      })
+    fetchEncounters()
+      .then(setEncounters)
       .finally(() => setLoading(false));
   }, []);
-
-  // Helpers para obtener nombre y fecha
-  function getAppointment(appointmentId?: string) {
-    return appointments.find(a => a.id === appointmentId);
-  }
-  function getPatient(patientId?: string) {
-    return patients.find(p => p.id === patientId);
-  }
-  function getUser(userId?: string) {
-    return users.find(u => u.id === userId);
-  }
-  function getPatientDisplay(enc: EncounterEntity) {
-    // Encuentra appointment, luego patient, luego user
-    const appt = getAppointment(enc.appointmentId);
-    const patient = appt ? getPatient(appt.patientId) : undefined;
-    const user = patient && patient.user ? getUser(patient.user.id) : undefined;
-    if (user) return [user.firstName, user.lastName].filter(Boolean).join(' ');
-    return patient?.id || 'Paciente';
-  }
-  function getAppointmentDate(enc: EncounterEntity) {
-    const appt = getAppointment(enc.appointmentId);
-    return appt ? formatDate(appt.startAt) : '-';
-  }
 
   function handleSelectEncounter(encounter: EncounterEntity) {
     setSelectedEncounter(encounter);
@@ -126,6 +119,7 @@ export default function EncountersPage() {
     if (!formVitals) return;
     setSavingVitals(true);
     try {
+      // Set recordedAt to system time
       const vitalsPayload = { ...formVitals, recordedAt: new Date().toISOString() };
       await createVitals(vitalsPayload);
       fetchVitals({ encounterId: formVitals.encounterId }).then(setVitals);
@@ -137,21 +131,17 @@ export default function EncountersPage() {
     }
   }
 
-  // Calendar events: show patient name and appointment date
+  // Eventos para calendario
   const calendarEvents = useMemo(
     () =>
-      encounters.map(enc => {
-        const title = `${getPatientDisplay(enc)}${enc.reason ? ' - ' + enc.reason : ''}`;
-        const start = getAppointment(enc.appointmentId)?.startAt;
-        return {
-          id: enc.id,
-          title,
-          start,
-          backgroundColor: '#3b82f6',
-          borderColor: '#3b82f6',
-        };
-      }),
-    [encounters, appointments, patients, users]
+      encounters.map(enc => ({
+        id: enc.id,
+        title: `${getPatientName(enc.patientId)}${enc.reason ? ' - ' + enc.reason : ''}`,
+        start: enc.encounterDate,
+        backgroundColor: '#3b82f6',
+        borderColor: '#3b82f6',
+      })),
+    [encounters, patients]
   );
 
   return (
@@ -201,15 +191,17 @@ export default function EncountersPage() {
               <tbody>
                 {encounters.map(enc => (
                   <tr key={enc.id}>
-                    <td>{getPatientDisplay(enc)}</td>
-                    <td>{getAppointmentDate(enc)}</td>
+                    <td>{getPatientName(enc.patientId)}</td>
+                    <td>{formatDate(enc.encounterDate)}</td>
                     <td>{enc.reason}</td>
                     <td>{enc.diagnosis}</td>
                     <td>{enc.status}</td>
                     <td>
                       <button
                         className="px-2 py-1 bg-blue-600 text-white rounded"
-                        onClick={() => handleSelectEncounter(enc)}
+                        onClick={() =>
+                          router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`)
+                        }
                       >
                         Ver detalles
                       </button>
@@ -250,10 +242,10 @@ export default function EncountersPage() {
         <div className="mt-8 p-4 border rounded bg-gray-50">
           <h2 className="text-xl font-semibold mb-2">Detalles del encuentro</h2>
           <div>
-            <b>Paciente:</b> {getPatientDisplay(selectedEncounter)}
+            <b>Paciente:</b> {getPatientName(selectedEncounter.patientId)}
           </div>
           <div>
-            <b>Fecha cita:</b> {getAppointmentDate(selectedEncounter)}
+            <b>Fecha cita:</b> {formatDate(selectedEncounter.encounterDate)}
           </div>
           <div>
             <b>Motivo:</b> {selectedEncounter.reason}
@@ -360,6 +352,7 @@ export default function EncountersPage() {
                   className="border px-2 py-1 rounded w-full bg-gray-200"
                 />
               </div>
+              {/* Fecha del sistema, no mostrar input de fecha */}
               <button
                 type="submit"
                 className="mt-4 px-4 py-2 bg-blue-700 text-white rounded"

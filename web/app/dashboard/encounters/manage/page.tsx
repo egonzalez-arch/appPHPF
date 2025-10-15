@@ -19,6 +19,7 @@ import {
   AppointmentEntity,
 } from '@/lib/api/api.appointments';
 import { fetchPatients, Patient } from '@/lib/api/api';
+import { useEncounterAudit } from '@/hooks/useEncounterAudit';
 
 // Helpers
 function formatDate(iso?: string) {
@@ -31,12 +32,29 @@ function formatDate(iso?: string) {
     })}`;
   } catch { return iso; }
 }
+function statusLabel(s?: string) {
+  switch (s) {
+    case 'IN_PROGRESS': return 'En progreso';
+    case 'COMPLETED': return 'Completado';
+    case 'CANCELLED': return 'Cancelado';
+    default: return s || '-';
+  }
+}
+function isValidUuid(v?: string | null) {
+  if (!v) return false;
+  // UUID v4 genérica
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
 
 export default function ManageEncounterPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const encounterId = search.get('encounterId');
-  const appointmentId = search.get('appointmentId');
+
+  // Sanea el query param: puede venir el string "undefined"
+  const qpEncounterId = search.get('encounterId');
+  const qpAppointmentId = search.get('appointmentId');
+  const encounterId = qpEncounterId && qpEncounterId !== 'undefined' ? qpEncounterId : null;
+  const appointmentId = qpAppointmentId && qpAppointmentId !== 'undefined' ? qpAppointmentId : null;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,7 +64,7 @@ export default function ManageEncounterPage() {
   const [appointments, setAppointments] = useState<AppointmentEntity[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
 
-  // Form Encounter
+  // Form Encuentro
   const [reason, setReason] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
@@ -71,22 +89,24 @@ export default function ManageEncounterPage() {
     return full || appointment.patientId;
   }, [patients, appointment]);
 
+  // Audit solo si hay un id válido
+  const auditEncounterId = isValidUuid(encounter?.id || undefined) ? encounter!.id : undefined;
+  const { data: auditEvents, isLoading: auditLoading, isError: auditError, error: auditErr } =
+    useEncounterAudit(auditEncounterId);
+
   useEffect(() => {
     let mounted = true;
     async function load() {
       try {
         setLoading(true);
-        // Load base data
-        const [appts, pats] = await Promise.all([
-          fetchAppointments(), // list to resolve relations
-          fetchPatients(),
-        ]);
+        const [appts, pats] = await Promise.all([fetchAppointments(), fetchPatients()]);
         if (!mounted) return;
         setAppointments(appts);
         setPatients(pats);
 
-        if (encounterId) {
-          const enc = await fetchEncounter(encounterId);
+        // Si viene encounterId válido, carga encuentro; si no, modo crear
+        if (isValidUuid(encounterId)) {
+          const enc = await fetchEncounter(encounterId!);
           if (!mounted) return;
           setEncounter(enc);
           setReason(enc.reason || '');
@@ -98,7 +118,6 @@ export default function ManageEncounterPage() {
           if (!mounted) return;
           setVitals(vit);
         } else {
-          // starting a new encounter from appointmentId
           setEncounter(null);
           setReason('');
           setDiagnosis('');
@@ -115,15 +134,15 @@ export default function ManageEncounterPage() {
   }, [encounterId, appointmentId]);
 
   async function saveEncounter() {
-    if (!appointment && !encounter) return;
     setSaving(true);
     try {
-      if (encounter) {
-        const updated = await updateEncounter(encounter.id, { reason, diagnosis, notes, status });
+      const currentId = encounter?.id;
+      if (isValidUuid(currentId)) {
+        const updated = await updateEncounter(currentId!, { reason, diagnosis, notes, status });
         setEncounter(updated);
-      } else if (appointmentId) {
+      } else if (isValidUuid(appointmentId)) {
         const created = await createEncounter({
-          appointmentId,
+          appointmentId: appointmentId!,
           encounterDate: new Date().toISOString(),
           reason,
           diagnosis,
@@ -131,6 +150,8 @@ export default function ManageEncounterPage() {
           status,
         });
         setEncounter(created);
+      } else {
+        alert('No hay referencia válida de encuentro o cita para guardar.');
       }
     } catch (e: any) {
       alert(e?.message || 'Error guardando encuentro');
@@ -140,20 +161,18 @@ export default function ManageEncounterPage() {
   }
 
   async function addVitals() {
-    if (!encounter?.id) {
-      alert('Primero guarda el encuentro.');
+    if (!isValidUuid(encounter?.id)) {
+      alert('Primero guarda el encuentro (no hay ID válido).');
       return;
     }
-    if (
-      vHeight === '' || vWeight === '' || vHR === '' || vBP.trim() === '' || vSpO2 === ''
-    ) {
+    if (vHeight === '' || vWeight === '' || vHR === '' || vBP.trim() === '' || vSpO2 === '') {
       alert('Completa todos los campos de signos vitales.');
       return;
     }
     try {
       const bmi = Number(vWeight) / ((Number(vHeight) / 100) ** 2);
       await createVitals({
-        encounterId: encounter.id,
+        encounterId: encounter!.id,
         height: Number(vHeight),
         weight: Number(vWeight),
         hr: Number(vHR),
@@ -162,14 +181,11 @@ export default function ManageEncounterPage() {
         bmi,
         recordedAt: new Date().toISOString(),
       });
-      const vit = await fetchVitals({ encounterId: encounter.id });
+      const vit = await fetchVitals({ encounterId: encounter!.id });
       setVitals(vit);
 
-      // reset minimal vital fields
-      setVHR('');
-      setVBP('');
-      setVSpO2('');
-      // keep height/weight to ease repeated measurements if desired
+      // reset parciales
+      setVHR(''); setVBP(''); setVSpO2('');
     } catch (e: any) {
       alert(e?.message || 'Error guardando signos vitales');
     }
@@ -183,9 +199,9 @@ export default function ManageEncounterPage() {
         </h1>
         <button
           className="px-3 py-2 rounded border hover:bg-gray-50"
-          onClick={() => router.back()}
+          onClick={() => router.push('/dashboard/appointments')}
         >
-          Volver
+          Volver a Citas
         </button>
       </div>
 
@@ -194,64 +210,33 @@ export default function ManageEncounterPage() {
         {loading ? (
           <div>Cargando...</div>
         ) : (
-          <>
-            <div className="grid md:grid-cols-3 gap-3 text-sm">
-              <div>
-                <span className="font-medium">Paciente:</span>{' '}
-                {patientName || '-'}
-              </div>
-              <div>
-                <span className="font-medium">Fecha de cita:</span>{' '}
-                {formatDate(appointment?.startAt)}
-              </div>
-              <div>
-                <span className="font-medium">Estado encuentro:</span>{' '}
-                {encounter?.status || status}
-              </div>
-            </div>
-          </>
+          <div className="grid md:grid-cols-3 gap-3 text-sm">
+            <div><span className="font-medium">Paciente:</span> {patientName || '-'}</div>
+            <div><span className="font-medium">Fecha de cita:</span> {formatDate(appointment?.startAt)}</div>
+            <div><span className="font-medium">Estado encuentro:</span> {encounter?.status ? statusLabel(encounter.status) : statusLabel(status)}</div>
+          </div>
         )}
       </div>
 
-      {/* Form Encuentro (sin botón aquí) */}
+      {/* Form Encuentro */}
       <div className="bg-white rounded border p-4">
         <h2 className="text-lg font-semibold mb-3">Datos del encuentro</h2>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium">Motivo</label>
-            <input
-              className="border rounded px-3 py-2 w-full"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Motivo de consulta"
-            />
+            <input className="border rounded px-3 py-2 w-full" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo de consulta" />
           </div>
           <div>
             <label className="block text-sm font-medium">Diagnóstico</label>
-            <input
-              className="border rounded px-3 py-2 w-full"
-              value={diagnosis}
-              onChange={(e) => setDiagnosis(e.target.value)}
-              placeholder="Diagnóstico principal"
-            />
+            <input className="border rounded px-3 py-2 w-full" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnóstico principal" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium">Notas</label>
-            <textarea
-              className="border rounded px-3 py-2 w-full"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notas adicionales"
-            />
+            <textarea className="border rounded px-3 py-2 w-full" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas adicionales" />
           </div>
           <div>
             <label className="block text-sm font-medium">Estado</label>
-            <select
-              className="border rounded px-3 py-2 w-full bg-white"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as EncounterStatus)}
-            >
+            <select className="border rounded px-3 py-2 w-full bg-white" value={status} onChange={(e) => setStatus(e.target.value as EncounterStatus)}>
               <option value="IN_PROGRESS">En progreso</option>
               <option value="COMPLETED">Completado</option>
               <option value="CANCELLED">Cancelado</option>
@@ -264,108 +249,107 @@ export default function ManageEncounterPage() {
       <div className="bg-white rounded border p-4">
         <h2 className="text-lg font-semibold mb-3">Signos vitales</h2>
 
-        {/* Lista */}
         <ul className="text-sm mb-4">
           {vitals.length === 0 ? (
             <li className="text-gray-500">No hay signos vitales registrados</li>
           ) : (
             vitals.map(v => (
               <li key={v.id} className="py-1">
-                <strong>{formatDate(v.recordedAt)}:</strong>{' '}
-                {v.height}cm, {v.weight}kg, IMC {v.bmi?.toFixed(2)}, HR {v.hr}, BP {v.bp}, SpO2 {v.spo2}%
+                <strong>{formatDate(v.recordedAt)}:</strong> {v.height}cm, {v.weight}kg, IMC {v.bmi?.toFixed(2)}, HR {v.hr}, BP {v.bp}, SpO2 {v.spo2}%
               </li>
             ))
           )}
         </ul>
 
-        {/* Form agregar */}
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium">Altura (cm)</label>
-            <input
-              type="number"
-              className="border rounded px-3 py-2 w-full"
-              value={vHeight}
-              onChange={(e) => setVHeight(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="170"
-            />
+            <input type="number" className="border rounded px-3 py-2 w-full" value={vHeight} onChange={(e) => setVHeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="170" />
           </div>
           <div>
             <label className="block text-sm font-medium">Peso (kg)</label>
-            <input
-              type="number"
-              className="border rounded px-3 py-2 w-full"
-              value={vWeight}
-              onChange={(e) => setVWeight(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="70"
-            />
+            <input type="number" className="border rounded px-3 py-2 w-full" value={vWeight} onChange={(e) => setVWeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="70" />
           </div>
           <div>
             <label className="block text-sm font-medium">IMC (auto)</label>
-            <input
-              disabled
-              className="border rounded px-3 py-2 w-full bg-gray-100"
-              value={
-                vHeight && vWeight
-                  ? (Number(vWeight) / ((Number(vHeight) / 100) ** 2)).toFixed(2)
-                  : ''
-              }
-              placeholder="—"
-            />
+            <input disabled className="border rounded px-3 py-2 w-full bg-gray-100" value={vHeight && vWeight ? (Number(vWeight) / ((Number(vHeight) / 100) ** 2)).toFixed(2) : ''} placeholder="—" />
           </div>
           <div>
             <label className="block text-sm font-medium">Frecuencia cardiaca (HR)</label>
-            <input
-              type="number"
-              className="border rounded px-3 py-2 w-full"
-              value={vHR}
-              onChange={(e) => setVHR(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="72"
-            />
+            <input type="number" className="border rounded px-3 py-2 w-full" value={vHR} onChange={(e) => setVHR(e.target.value === '' ? '' : Number(e.target.value))} placeholder="72" />
           </div>
           <div>
             <label className="block text-sm font-medium">Presión arterial (BP)</label>
-            <input
-              className="border rounded px-3 py-2 w-full"
-              value={vBP}
-              onChange={(e) => setVBP(e.target.value)}
-              placeholder="120/80"
-            />
+            <input className="border rounded px-3 py-2 w-full" value={vBP} onChange={(e) => setVBP(e.target.value)} placeholder="120/80" />
           </div>
           <div>
             <label className="block text-sm font-medium">SpO2 (%)</label>
-            <input
-              type="number"
-              className="border rounded px-3 py-2 w-full"
-              value={vSpO2}
-              onChange={(e) => setVSpO2(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="98"
-            />
+            <input type="number" className="border rounded px-3 py-2 w-full" value={vSpO2} onChange={(e) => setVSpO2(e.target.value === '' ? '' : Number(e.target.value))} placeholder="98" />
           </div>
         </div>
         <div className="pt-4">
-          <button
-            onClick={addVitals}
-            className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
-          >
+          <button onClick={addVitals} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700">
             Guardar signos vitales
           </button>
         </div>
       </div>
 
-      {/* Botones finales: Cancelar y Guardar Cambios */}
+      {/* Historial del encuentro */}
+      <div className="bg-white rounded border p-4">
+        <h2 className="text-lg font-semibold mb-3">Historial del encuentro</h2>
+        {auditEncounterId ? (
+          <>
+            {auditLoading && <div className="text-sm text-gray-600">Cargando historial...</div>}
+            {auditError && <div className="text-sm text-red-600">{String(auditErr)}</div>}
+            {!auditLoading && !auditError && (!auditEvents || auditEvents.length === 0) && (
+              <div className="text-sm text-gray-500">Sin eventos registrados.</div>
+            )}
+            {!auditLoading && !!auditEvents?.length && (
+              <ol className="relative border-l border-gray-200 ml-2">
+                {auditEvents.map(ev => (
+                  <li key={ev.id} className="mb-4 ml-4">
+                    <div className="absolute w-2 h-2 bg-teal-500 rounded-full -left-1.5 top-1" />
+                    <time className="block text-[11px] text-gray-500">{formatDate(ev.createdAt)}</time>
+                    <div className="text-xs font-medium capitalize">
+                      {ev.action === 'create'
+                        ? 'Encuentro creado'
+                        : ev.action === 'update'
+                        ? 'Encuentro actualizado'
+                        : ev.action === 'status-change'
+                        ? 'Cambio de estado'
+                        : ev.action === 'delete'
+                        ? 'Encuentro eliminado'
+                        : ev.action}
+                    </div>
+                    {ev.metadataJson?.changes && (
+                      <pre className="mt-1 bg-gray-50 border text-[10px] p-2 rounded overflow-x-auto">
+{JSON.stringify(ev.metadataJson.changes, null, 2)}
+                      </pre>
+                    )}
+                    {ev.metadataJson?.oldStatus && ev.metadataJson?.newStatus && (
+                      <div className="text-[11px] text-gray-600 mt-1">
+                        {statusLabel(ev.metadataJson.oldStatus)} → {statusLabel(ev.metadataJson.newStatus)}
+                      </div>
+                    )}
+                    {ev.metadataJson?.reason && (
+                      <div className="text-[11px] text-gray-600 mt-1">Motivo: {ev.metadataJson.reason}</div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </>
+        ) : (
+          <div className="text-sm text-gray-500">El historial se habilita cuando el encuentro existe.</div>
+        )}
+      </div>
+
+      {/* Botones finales */}
       <div className="flex justify-end gap-2">
-        <button
-          onClick={() => router.push('/dashboard/appointments')}
-          className="px-5 py-2.5 rounded border text-gray-700 hover:bg-gray-100"
-        >
+        <button onClick={() => router.push('/dashboard/appointments')} className="px-5 py-2.5 rounded border text-gray-700 hover:bg-gray-100">
           Cancelar
         </button>
-        <button
-          onClick={saveEncounter}
-          disabled={saving}
-          className="px-5 py-2.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button onClick={saveEncounter} disabled={saving} className="px-5 py-2.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
           {saving ? 'Guardando...' : encounter ? 'Guardar cambios' : 'Crear encuentro'}
         </button>
       </div>
