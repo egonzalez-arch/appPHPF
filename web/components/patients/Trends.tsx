@@ -22,11 +22,17 @@ export default function Trends({ vitals }: TrendsProps) {
     // Sort vitals by recordedAt ascending for chronological display
     const sorted = vitals
       .slice()
-      .filter(v => v.recordedAt) // Only include vitals with a recorded date
+      .filter(v => {
+        // Validate recordedAt exists and is a valid date
+        if (!v.recordedAt) return false;
+        const date = new Date(v.recordedAt);
+        return !isNaN(date.getTime());
+      })
       .sort((a, b) => new Date(a.recordedAt!).getTime() - new Date(b.recordedAt!).getTime());
 
     return sorted.map((v) => {
       // Calculate BMI if not present and we have height and weight
+      // Assumption: height is in centimeters (as per VitalsEntity standard)
       let bmi = v.bmi;
       if (!bmi && v.height && v.weight && v.height > 0) {
         const heightInMeters = v.height / 100;

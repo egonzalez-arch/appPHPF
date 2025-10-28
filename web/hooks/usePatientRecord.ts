@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { fetchPatients, Patient } from '@/lib/api/api';
 import { fetchAppointments, AppointmentEntity } from '@/lib/api/api.appointments';
 import { fetchEncounters, EncounterEntity } from '@/lib/api/api.encounters';
@@ -101,8 +101,10 @@ export function usePatientRecord(patientId?: string) {
   // 4) Derivados
   const patientAppointments: AppointmentEntity[] = useMemo(() => {
     if (!patientId || !qAppointments.data) return [];
+    // Si el backend ya filtró por patientId (queryKey contiene patientId),
+    // asumimos que los datos ya vienen filtrados
+    // Fallback: filtrar en cliente si los datos no están filtrados
     const list = qAppointments.data.filter((a: any) => {
-      // algunos APIs devuelven a.patientId o a.patient?.id
       const pid = a?.patientId || a?.patient?.id || a?.patient_id;
       return pid === patientId;
     });
@@ -144,26 +146,36 @@ export function usePatientRecord(patientId?: string) {
     return out;
   }, [qEncounters.data, apptById, patientId]);
 
-  // 5) Vitals por cada encounter del paciente
-  const vitalsQueries = useQueries({
-    queries: (patientEncounters || []).map((enc: any) => ({
-      queryKey: ['vitals', 'by-encounter', enc.id],
-      enabled: !!enc?.id && !!patientId,
-      queryFn: async () => {
-        try {
-          const v = await fetchVitals({ encounterId: enc.id });
-          return v as VitalsEntity[];
-        } catch {
-          return [] as VitalsEntity[];
+  // 5) Vitals - intenta usar patientId filter primero, fallback a per-encounter
+  const qVitals = useQuery({
+    queryKey: ['vitals', 'patient', patientId],
+    enabled: !!patientId,
+    staleTime: 2 * 60 * 1000, // 2 min
+    queryFn: async () => {
+      // Intenta filtrar por patientId si el backend lo soporta
+      try {
+        const filtered = await fetchVitals({ patientId });
+        if (DEBUG_LOG) console.log('[Record] vitals (filtered by patientId)', filtered?.length);
+        return filtered;
+      } catch {
+        // Fallback: trae vitals por cada encounter (estrategia N+1, pero compatible)
+        if (!patientEncounters.length) return [];
+        const allVitals: VitalsEntity[] = [];
+        for (const enc of patientEncounters) {
+          try {
+            const v = await fetchVitals({ encounterId: enc.id });
+            allVitals.push(...v);
+          } catch {
+            // Ignora errores de encounters individuales
+          }
         }
-      },
-    })),
+        if (DEBUG_LOG) console.log('[Record] vitals (fallback per-encounter)', allVitals.length);
+        return allVitals;
+      }
+    },
   });
 
-  const vitals: VitalsEntity[] = useMemo(
-    () => vitalsQueries.flatMap((q) => (q.data as VitalsEntity[] | undefined) || []),
-    [vitalsQueries],
-  );
+  const vitals: VitalsEntity[] = useMemo(() => qVitals.data || [], [qVitals.data]);
 
   // 6) Summary
   const lastVitals =
@@ -198,19 +210,19 @@ export function usePatientRecord(patientId?: string) {
     qPatients.isLoading ||
     qAppointments.isLoading ||
     qEncounters.isLoading ||
-    vitalsQueries.some((q) => q.isLoading);
+    qVitals.isLoading;
 
   const isError =
     qPatients.isError ||
     qAppointments.isError ||
     qEncounters.isError ||
-    vitalsQueries.some((q) => q.isError);
+    qVitals.isError;
 
   const error =
     qPatients.error ||
     qAppointments.error ||
     qEncounters.error ||
-    vitalsQueries.find((q) => q.error)?.error;
+    qVitals.error;
 
   return { data: result, isLoading, isError, error };
 }
