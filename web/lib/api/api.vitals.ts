@@ -55,9 +55,11 @@ function parseJSON<T=any>(txt: string): T {
 
 export async function fetchVitals(params?: {
   encounterId?: string;
+  patientId?: string;
 }): Promise<VitalsEntity[]> {
   const url = new URL(`${API_URL}/vitals`);
   if (params?.encounterId) url.searchParams.set('encounterId', params.encounterId);
+  if (params?.patientId) url.searchParams.set('patientId', params.patientId);
   const res = await fetch(url.toString(), {
     credentials: 'include',
     headers: { 'X-CSRF-Token': getCsrf() },
