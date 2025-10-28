@@ -1,4 +1,5 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import { useAppointmentAudit } from '@/hooks/useAppointmentAudit';
 import { AppointmentEntity, AppointmentStatus } from '@/lib/api/api.appointments';
 import { useDoctorsLite } from '@/hooks/useDoctorsLite';
@@ -26,6 +27,7 @@ export function AppointmentHistoryPanel({
   onOpenEncounter,
   encounterCtaLabel = 'Iniciar encuentro',
 }: Props) {
+  const router = useRouter();
   const { data, isLoading, isError, error } = useAppointmentAudit(
     appointment?.id || undefined,
   );
@@ -169,6 +171,13 @@ export function AppointmentHistoryPanel({
                 {encounterCtaLabel}
               </button>
             )}
+
+            <button
+              onClick={() => router.push(`/dashboard/patients/${appointment.patientId}/record`)}
+              className="px-3 py-1 text-sm rounded bg-purple-600 text-white hover:bg-purple-700"
+            >
+              Ver expediente
+            </button>
           </div>
 
           <hr className="my-3" />

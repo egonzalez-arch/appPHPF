@@ -39,25 +39,39 @@ export function usePatientRecord(patientId?: string) {
   });
 
   const qEncounters = useQuery({
-    queryKey: ['encounters', 'by-patient', patientId],
+    queryKey: ['encounters'],
     enabled: !!patientId,
     queryFn: async () => {
       const all = await fetchEncounters();
-      return all.filter(e => e.patientId === patientId);
+      return all;
     },
   });
 
   const qVitals = useQuery({
-    queryKey: ['vitals', 'by-patient', patientId],
+    queryKey: ['vitals'],
     enabled: !!patientId,
     queryFn: async () => {
       const all = await fetchVitals({});
-      return all.filter(v => (v as any).patientId === patientId || (v as any).encounterPatientId === patientId);
+      return all;
     },
   });
 
+  // Filter encounters by patient's appointments
+  const patientAppointmentIds = new Set(
+    (qAppointments.data || []).map(a => a.id)
+  );
+  const patientEncounters = (qEncounters.data || []).filter(e =>
+    patientAppointmentIds.has(e.appointmentId)
+  );
+
+  // Filter vitals by patient's encounters
+  const patientEncounterIds = new Set(patientEncounters.map(e => e.id));
+  const patientVitals = (qVitals.data || []).filter(v =>
+    patientEncounterIds.has(v.encounterId)
+  );
+
   const lastVitals =
-    (qVitals.data || [])
+    patientVitals
       .slice()
       .sort((a, b) => new Date(b.recordedAt || '').getTime() - new Date(a.recordedAt || '').getTime())[0] || null;
 
@@ -69,12 +83,12 @@ export function usePatientRecord(patientId?: string) {
   const result: RecordData = {
     patient: qPatients.data || null,
     appointments: qAppointments.data || [],
-    encounters: qEncounters.data || [],
-    vitals: qVitals.data || [],
+    encounters: patientEncounters,
+    vitals: patientVitals,
     summary: {
       lastVitals,
       nextAppointment,
-      encountersCount: (qEncounters.data || []).length,
+      encountersCount: patientEncounters.length,
     },
   };
 
