@@ -4,9 +4,26 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePatientRecord } from '@/hooks/usePatientRecord';
 
 export default function PatientRecordPage() {
-  const { patientId } = useParams<{ patientId: string }>();
+  // useParams puede retornar null según tu tipado; no destructures directo
+  const params = useParams() as
+    | (Record<string, string | string[]> & { patientId?: string; patientid?: string })
+    | null;
+
+  // Soporte para ambos nombres de carpeta dinámica: [patientId] y [patientid]
+  const rawParam = params?.patientId ?? params?.patientid;
+  const patientId =
+    Array.isArray(rawParam) ? (rawParam[0] as string) : (rawParam as string | undefined);
+
   const router = useRouter();
   const { data, isLoading, isError, error } = usePatientRecord(patientId);
+
+  if (!patientId) {
+    return (
+      <div className="p-6 text-red-600">
+        Ruta inválida: falta patientId en la URL (verifica el nombre de la carpeta dinámica).
+      </div>
+    );
+  }
 
   if (isLoading) return <div className="p-6">Cargando expediente...</div>;
   if (isError) return <div className="p-6 text-red-600">Error: {String(error)}</div>;
@@ -22,7 +39,6 @@ export default function PatientRecordPage() {
           <a href="#resumen" className="text-teal-700 hover:underline">Resumen</a>
           <a href="#encuentros" className="text-teal-700 hover:underline">Encuentros</a>
           <a href="#vitales" className="text-teal-700 hover:underline">Signos vitales</a>
-          {/* Futuro: <a href="#documentos">Documentos</a>, <a href="#labs">Laboratorios</a> */}
         </nav>
       </aside>
 
@@ -36,7 +52,7 @@ export default function PatientRecordPage() {
                 {p?.user?.firstName} {p?.user?.lastName}
               </h1>
               <div className="text-sm text-gray-600">
-                ID: {p?.id}
+                ID: {p?.id || patientId /* fallback */}
               </div>
             </div>
             <button
@@ -104,7 +120,6 @@ export default function PatientRecordPage() {
                         <button
                           className="px-2 py-1 rounded bg-blue-600 text-white"
                           onClick={() => {
-                            // Abre la página de gestión de encuentro existente
                             window.location.href = `/dashboard/encounters/manage?encounterId=${e.id}`;
                           }}
                         >
