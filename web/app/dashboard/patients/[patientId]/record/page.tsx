@@ -102,10 +102,10 @@ export default function PatientRecordPage() {
                       <td className="px-3 py-2">{e.status}</td>
                       <td className="px-3 py-2">
                         <button
-                          className="px-2 py-1 rounded bg-blue-600 text-white"
+                          className="px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
                           onClick={() => {
                             // Abre la página de gestión de encuentro existente
-                            window.location.href = `/dashboard/encounters/manage?encounterId=${e.id}`;
+                            router.push(`/dashboard/encounters/manage?encounterId=${e.id}`);
                           }}
                         >
                           Ver / Editar
