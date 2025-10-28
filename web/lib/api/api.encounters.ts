@@ -57,11 +57,13 @@ function parseJSON<T=any>(txt: string): T {
 
 export async function fetchEncounters(params?: {
   appointmentId?: string;
+  patientId?: string;
   status?: EncounterStatus;
   createdBy?: string;
 }): Promise<EncounterEntity[]> {
   const url = new URL(`${API_URL}/encounters`);
   if (params?.appointmentId) url.searchParams.set('appointmentId', params.appointmentId);
+  if (params?.patientId) url.searchParams.set('patientId', params.patientId);
   if (params?.status) url.searchParams.set('status', params.status);
   if (params?.createdBy) url.searchParams.set('createdBy', params.createdBy);
   const res = await fetch(url.toString(), {

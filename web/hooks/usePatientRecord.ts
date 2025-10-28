@@ -44,6 +44,7 @@ export function usePatientRecord(patientId?: string) {
   const qPatients = useQuery({
     queryKey: ['patient', patientId],
     enabled: !!patientId,
+    staleTime: 10 * 60 * 1000, // 10 min - catálogo relativamente estable
     queryFn: async () => {
       const list = await fetchPatients();
       const found = list.find((p) => p.id === patientId) || null;
@@ -52,28 +53,48 @@ export function usePatientRecord(patientId?: string) {
     },
   });
 
-  // 2) Citas (trae todo; client-side filter)
+  // 2) Citas (con filtro patientId si el backend lo soporta)
   const qAppointments = useQuery({
-    queryKey: ['appointments', 'all'],
+    queryKey: ['appointments', 'patient', patientId],
     enabled: !!patientId,
+    staleTime: 2 * 60 * 1000, // 2 min
     queryFn: async () => {
-      const all = await fetchAppointments();
-      if (DEBUG_LOG) console.log('[Record] appointments count', all?.length);
-      return all;
+      // Intenta filtrar por patientId; si el backend no soporta, devuelve todo
+      try {
+        const filtered = await fetchAppointments({ patientId });
+        if (DEBUG_LOG) console.log('[Record] appointments (filtered)', filtered?.length);
+        return filtered;
+      } catch {
+        // Fallback: trae todo y filtra en cliente
+        const all = await fetchAppointments();
+        if (DEBUG_LOG) console.log('[Record] appointments (all, fallback)', all?.length);
+        return all;
+      }
     },
   });
 
-  // 3) Encuentros (trae todo; luego resolvemos a qué paciente pertenecen)
+  // 3) Encuentros (con filtro patientId si el backend lo soporta)
   const qEncounters = useQuery({
-    queryKey: ['encounters', 'all'],
+    queryKey: ['encounters', 'patient', patientId],
     enabled: !!patientId,
+    staleTime: 2 * 60 * 1000, // 2 min
     queryFn: async () => {
-      const all = await fetchEncounters();
-      if (DEBUG_LOG) {
-        console.log('[Record] encounters count', all?.length);
-        if (all?.length) console.log('[Record] example encounter', all[0]);
+      try {
+        const filtered = await fetchEncounters({ patientId });
+        if (DEBUG_LOG) {
+          console.log('[Record] encounters (filtered)', filtered?.length);
+          if (filtered?.length) console.log('[Record] example encounter', filtered[0]);
+        }
+        return filtered;
+      } catch {
+        // Fallback: trae todo
+        const all = await fetchEncounters();
+        if (DEBUG_LOG) {
+          console.log('[Record] encounters (all, fallback)', all?.length);
+          if (all?.length) console.log('[Record] example encounter', all[0]);
+        }
+        return all;
       }
-      return all;
     },
   });
 
