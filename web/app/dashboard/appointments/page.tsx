@@ -19,6 +19,7 @@ import AppointmentForm from '@/components/forms/AppointmentForm';
 import { AppointmentCalendar } from '@/components/appointments/AppointmentCalendar';
 import { AppointmentAuditModal } from '@/components/appointments/AppointmentAuditModal';
 import { useRouter } from 'next/navigation';
+import { createAuditEvent } from '@/lib/api/api.audit';
 
 // NUEVO: para detectar si ya hay encuentro asociado a la cita
 import { fetchEncounters, EncounterEntity as Encounter } from '@/lib/api/api.encounters';
@@ -31,6 +32,36 @@ type PendingCreate = {
   endAt: string;
   reason: string;
 };
+
+// Normalización helpers
+function normalizeId(v: any): string | null {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object') {
+    return (v.id ?? v._id ?? v.userId ?? v.doctorId ?? v?.user?.id ?? null) || null;
+  }
+  return null;
+}
+function userIdCandidates(user: any): (string | null)[] {
+  if (!user) return [];
+  return [
+    normalizeId(user.id),
+    normalizeId(user.sub),
+    normalizeId(user.userId),
+    normalizeId(user.doctorId),
+    normalizeId(user.profile?.id),
+    normalizeId(user.profile?.doctorId),
+  ].filter(Boolean) as string[];
+}
+function appointmentDoctorId(appt: AppointmentEntity) {
+  return (
+    normalizeId((appt as any).doctorId) ||
+    normalizeId((appt as any).doctor?.id) ||
+    normalizeId((appt as any).doctor?.user?.id) ||
+    null
+  );
+}
 
 export default function AppointmentsPage() {
   const router = useRouter();
@@ -62,7 +93,7 @@ export default function AppointmentsPage() {
   const [prefillStart, setPrefillStart] = useState<Date | null>(null);
   const [prefillEnd, setPrefillEnd] = useState<Date | null>(null);
 
-  // NUEVO: mapa de encuentros por appointmentId para decidir CTA (Iniciar/Actualizar)
+  // NUEVO: mapa de encuentros por appointmentId para decidir CTA (Iniciar/Ver detalle)
   const [encountersByAppt, setEncountersByAppt] = useState<Record<string, Encounter>>({});
 
   const debounced = useDebouncedValue(rawSearch, 300);
@@ -240,25 +271,65 @@ export default function AppointmentsPage() {
     setSuccessMessage(msg);
   }
 
-  // NUEVO: CTA de Encuentro que navega a la página de gestión
+  // Helper: determina si el usuario actual es el doctor asignado a la cita
+  function isUserAssignedDoctorForAppointment(appt: AppointmentEntity | null | undefined) {
+    if (!appt || !sessionUser) return false;
+    const candidates = userIdCandidates(sessionUser);
+    const apptDocId = appointmentDoctorId(appt);
+    if (!apptDocId) return false;
+    return candidates.some((c) => c === apptDocId);
+  }
+
+  // NUEVO: CTA de Encuentro que navega a la página de ver o iniciar encuentro
   function renderEncounterCTA(appt: AppointmentEntity) {
     const enc = encountersByAppt[appt.id];
     if (enc) {
+      // Si ya existe encuentro, no permitir "actualizar", solo ver detalle (solo lectura)
       return (
         <button
-          className="px-3 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 shadow"
+          className="px-3 py-1 rounded bg-gray-200 text-gray-800 shadow"
           disabled={submitting}
-          onClick={() => router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`)}
+          onClick={() => {
+            createAuditEvent({
+              action: 'encounter.open_from_appointment',
+              entity: 'encounter',
+              entityId: enc.id,
+              metadata: { from: 'appointments.list', appointmentId: appt.id },
+            });
+            router.push(`/dashboard/encounters/${enc.id}`);
+          }}
         >
-          Actualizar encuentro
+          Ver detalle
         </button>
       );
     }
+
+    const allowed = isUserAssignedDoctorForAppointment(appt);
+    if (!allowed) {
+      return (
+        <button
+          title="Solo el doctor asignado a la cita puede iniciar el encuentro"
+          className="px-3 py-1 rounded bg-gray-100 text-gray-400 shadow cursor-not-allowed"
+          disabled
+        >
+          Iniciar encuentro
+        </button>
+      );
+    }
+
     return (
       <button
         className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
         disabled={submitting}
-        onClick={() => router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`)}
+        onClick={() => {
+          createAuditEvent({
+            action: 'encounter.start_click',
+            entity: 'appointment',
+            entityId: appt.id,
+            metadata: { from: 'appointments.list', doctorId: appt.doctorId, patientId: appt.patientId },
+          });
+          router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`);
+        }}
       >
         Iniciar encuentro
       </button>
@@ -566,20 +637,42 @@ export default function AppointmentsPage() {
                   <div className="pt-2">
                     {enc ? (
                       <button
-                        className="w-full px-3 py-2 rounded bg-amber-600 text-white hover:bg-amber-700 shadow"
+                        className="w-full px-3 py-2 rounded bg-gray-200 text-gray-800 shadow"
                         disabled={submitting}
-                        onClick={() => router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`)}
+                        onClick={() => {
+                          createAuditEvent({
+                            action: 'encounter.open_from_appointment',
+                            entity: 'encounter',
+                            entityId: enc.id,
+                            metadata: { from: 'appointments.mobile', appointmentId: a.id },
+                          });
+                          router.push(`/dashboard/encounters/${enc.id}`);
+                        }}
                       >
-                        Actualizar encuentro
+                        Ver detalle
                       </button>
                     ) : (
-                      <button
-                        className="w-full px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
-                        disabled={submitting}
-                        onClick={() => router.push(`/dashboard/encounters/manage?appointmentId=${a.id}`)}
-                      >
-                        Iniciar encuentro
-                      </button>
+                      isUserAssignedDoctorForAppointment(a) ? (
+                        <button
+                          className="w-full px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
+                          disabled={submitting}
+                          onClick={() => {
+                            createAuditEvent({
+                              action: 'encounter.start_click',
+                              entity: 'appointment',
+                              entityId: a.id,
+                              metadata: { from: 'appointments.mobile' },
+                            });
+                            router.push(`/dashboard/encounters/manage?appointmentId=${a.id}`);
+                          }}
+                        >
+                          Iniciar encuentro
+                        </button>
+                      ) : (
+                        <button className="w-full px-3 py-2 rounded bg-gray-100 text-gray-400 shadow cursor-not-allowed" disabled title="Solo el doctor asignado puede iniciar">
+                          Iniciar encuentro
+                        </button>
+                      )
                     )}
                   </div>
                   <div className="flex gap-4 mt-2 flex-wrap">
@@ -665,6 +758,8 @@ export default function AppointmentsPage() {
           </div>
         </div>
       )}
+
+      {/* ... el resto del archivo permanece igual ... */}
 
       {/* Modal confirm creation */}
       {showConfirmCreate && pendingCreateData && (

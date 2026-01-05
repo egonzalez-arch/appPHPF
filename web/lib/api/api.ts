@@ -375,12 +375,45 @@ export async function login(email: string, password: string): Promise<any> {
 }
 
 export async function logout(): Promise<void> {
-  const csrfToken = getCsrfTokenFromCookie();
-  await fetch(`${API_URL}/auth/logout`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-CSRF-Token': csrfToken },
-  });
+  // Construir base de API de forma robusta: usar NEXT_PUBLIC_API_URL si está definida,
+  // o fallback a ruta relativa (útil en entorno donde Next actúa como proxy).
+  const base =
+    typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
+      ? (process.env.NEXT_PUBLIC_API_URL as string).replace(/\/$/, '')
+      : '';
+
+  // Si base está vacío, usamos la ruta relativa que apunta al proxy/Next API route.
+  const url = base ? `${base}/auth/logout` : '/api/auth/logout';
+
+  try {
+    const csrfToken = getCsrfTokenFromCookie(); // si tu proyecto usa esto
+    const headers: Record<string, string> = {};
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+    });
+
+    // Opcional: manejar respuestas no OK
+    if (!res.ok) {
+      // Si quieres más información en dev
+      if (process.env.NODE_ENV !== 'production') {
+        const text = await res.text().catch(() => '');
+        // eslint-disable-next-line no-console
+        console.warn('Logout failed', res.status, text);
+      }
+      // No lanzar para evitar romper la navegación/UX; pero puedes lanzar si prefieres
+    }
+  } catch (err) {
+    // En desarrollo loguear el error para diagnóstico
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.error('Network error during logout:', err);
+    }
+    // No rethrow: mantenemos experiencia de usuario estable
+  }
 }
 
 export async function validateSession(): Promise<any> {

@@ -74,7 +74,8 @@ export default function AppointmentsCalendarPage() {
   function openEncounterManage(appointmentId: string) {
     const enc = encountersByAppt[appointmentId];
     if (enc) {
-      router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`);
+      // Si ya existe encuentro, abrir vista de detalle en modo solo lectura
+      router.push(`/dashboard/encounters/${enc.id}`);
     } else {
       router.push(`/dashboard/encounters/manage?appointmentId=${appointmentId}`);
     }
@@ -98,7 +99,7 @@ export default function AppointmentsCalendarPage() {
           slotMaxTime="21:00:00"
           height="auto"
           eventClick={(info) => {
-            // NUEVO: navegar a iniciar/actualizar encuentro
+            // NUEVO: navegar a ver/iniciar encuentro
             openEncounterManage(info.event.id);
           }}
         />

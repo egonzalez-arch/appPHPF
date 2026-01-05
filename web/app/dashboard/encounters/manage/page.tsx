@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import {
   fetchEncounter,
   createEncounter,
@@ -20,6 +21,8 @@ import {
 } from '@/lib/api/api.appointments';
 import { fetchPatients, Patient } from '@/lib/api/api';
 import { useEncounterAudit } from '@/hooks/useEncounterAudit';
+import { createAuditEvent } from '@/lib/api/api.audit';
+import { useDoctorsLite } from '@/hooks/useDoctorsLite';
 
 // Helpers
 function formatDate(iso?: string) {
@@ -42,13 +45,45 @@ function statusLabel(s?: string) {
 }
 function isValidUuid(v?: string | null) {
   if (!v) return false;
-  // UUID v4 genérica
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+// Normalización y comparación robusta de IDs (frontend)
+function normalizeId(v: any): string | null {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object') {
+    return (v.id ?? v._id ?? v.userId ?? v.doctorId ?? v?.user?.id ?? null) || null;
+  }
+  return null;
+}
+function userIdCandidates(user: any): (string | null)[] {
+  if (!user) return [];
+  return [
+    normalizeId(user.id),
+    normalizeId(user.sub),
+    normalizeId(user.userId),
+    normalizeId(user.doctorId),
+    normalizeId(user.profile?.id),
+    normalizeId(user.profile?.doctorId),
+  ].filter(Boolean) as string[];
+}
+function appointmentDoctorId(appt: AppointmentEntity | null | undefined): string | null {
+  if (!appt) return null;
+  return (
+    normalizeId((appt as any).doctorId) ||
+    normalizeId((appt as any).doctor?.id) ||
+    normalizeId((appt as any).doctor?.user?.id) ||
+    null
+  );
 }
 
 export default function ManageEncounterPage() {
   const router = useRouter();
   const search = useSearchParams();
+  const { user: sessionUser } = useAuth();
+  const { data: doctors } = useDoctorsLite(true);
 
   // Sanea el query param: puede venir el string "undefined"
   const qpEncounterId = search.get('encounterId');
@@ -78,7 +113,7 @@ export default function ManageEncounterPage() {
   const [vSpO2, setVSpO2] = useState<number | ''>('');
 
   const appointment = useMemo(
-    () => appointments.find(a => a.id === (encounter?.appointmentId || appointmentId || '')),
+    () => appointments.find(a => a.id === (encounter?.appointmentId || appointmentId || '')) || null,
     [appointments, encounter?.appointmentId, appointmentId],
   );
 
@@ -88,6 +123,40 @@ export default function ManageEncounterPage() {
     const full = [p?.user?.firstName, p?.user?.lastName].filter(Boolean).join(' ');
     return full || appointment.patientId;
   }, [patients, appointment]);
+
+  // Obtener doctor.id asociado al usuario desde tabla de doctores
+  function doctorIdForSessionUser(): string | null {
+    if (!sessionUser || !doctors) return null;
+    const sid = normalizeId(sessionUser.id) || normalizeId(sessionUser.sub) || null;
+    const semail = (sessionUser as any)?.email?.toLowerCase?.() ?? null;
+    const found = doctors.find((d: any) => {
+      const duid = normalizeId(d.user?.id) || normalizeId(d.user?.userId) || null;
+      const demail = (d.user?.email ?? d.email ?? '')?.toLowerCase?.() ?? null;
+      if (sid && duid && sid === duid) return true;
+      if (semail && demail && semail === demail) return true;
+      return false;
+    });
+    return found?.id ?? null;
+  }
+
+  // Check whether current user is the doctor assigned to the appointment (robusto)
+  function isUserAssignedDoctor() {
+    if (!sessionUser) return false;
+    if (!appointment) return false;
+
+    // 1) check doctors table mapping
+    const docIdFromUser = doctorIdForSessionUser();
+    if (docIdFromUser && appointment.doctorId && String(docIdFromUser) === String(appointment.doctorId)) {
+      return true;
+    }
+
+    // 2) fallback: direct candidate comparison
+    const candidates = userIdCandidates(sessionUser);
+    const apptDoc = appointmentDoctorId(appointment);
+    if (apptDoc && candidates.some((c) => c === apptDoc)) return true;
+
+    return false;
+  }
 
   // Audit solo si hay un id válido
   const auditEncounterId = isValidUuid(encounter?.id || undefined) ? encounter!.id : undefined;
@@ -99,10 +168,12 @@ export default function ManageEncounterPage() {
     async function load() {
       try {
         setLoading(true);
+
+        // Fetch appointments and patients in parallel
         const [appts, pats] = await Promise.all([fetchAppointments(), fetchPatients()]);
         if (!mounted) return;
-        setAppointments(appts);
-        setPatients(pats);
+        setAppointments(Array.isArray(appts) ? appts : []);
+        setPatients(Array.isArray(pats) ? pats : []);
 
         // Si viene encounterId válido, carga encuentro; si no, modo crear
         if (isValidUuid(encounterId)) {
@@ -116,8 +187,19 @@ export default function ManageEncounterPage() {
 
           const vit = await fetchVitals({ encounterId: enc.id });
           if (!mounted) return;
-          setVitals(vit);
+          setVitals(Array.isArray(vit) ? vit : []);
         } else {
+          // Creating mode: try to ensure appointments includes the specific appointmentId
+          if (appointmentId && !appts.find(a => a.id === appointmentId)) {
+            try {
+              const refreshed = await fetchAppointments();
+              if (!mounted) return;
+              setAppointments(Array.isArray(refreshed) ? refreshed : appts);
+            } catch {
+              // ignore
+            }
+          }
+
           setEncounter(null);
           setReason('');
           setDiagnosis('');
@@ -125,6 +207,8 @@ export default function ManageEncounterPage() {
           setStatus('IN_PROGRESS');
           setVitals([]);
         }
+      } catch (err) {
+        if (process.env.NODE_ENV !== 'production') console.error('ManageEncounter load error', err);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,13 +217,22 @@ export default function ManageEncounterPage() {
     return () => { mounted = false; };
   }, [encounterId, appointmentId]);
 
+  const creatingMode = !isValidUuid(encounter?.id || undefined) && isValidUuid(appointmentId);
+
   async function saveEncounter() {
+    if (creatingMode && !isUserAssignedDoctor()) {
+      alert('No autorizado: solo el doctor asignado puede iniciar este encuentro.');
+      return;
+    }
+
     setSaving(true);
     try {
       const currentId = encounter?.id;
+      let saved: EncounterEntity | null = null;
       if (isValidUuid(currentId)) {
         const updated = await updateEncounter(currentId!, { reason, diagnosis, notes, status });
-        setEncounter(updated);
+        setEncounter(prev => ({ ...(prev || {}), ...(updated || {}) } as EncounterEntity));
+        saved = { ...(encounter || {}), ...(updated || {}) } as EncounterEntity;
       } else if (isValidUuid(appointmentId)) {
         const created = await createEncounter({
           appointmentId: appointmentId!,
@@ -150,8 +243,25 @@ export default function ManageEncounterPage() {
           status,
         });
         setEncounter(created);
+        saved = created;
       } else {
         alert('No hay referencia válida de encuentro o cita para guardar.');
+      }
+
+      if (saved) {
+        // Fire-and-forget audit
+        void createAuditEvent({
+          action: currentId ? 'encounter.update' : 'encounter.create',
+          entity: 'encounter',
+          entityId: saved.id,
+          metadata: {
+            appointmentId: saved.appointmentId,
+            status: saved.status,
+            reason: saved.reason ?? undefined,
+          },
+          userId: (sessionUser as any)?.id ?? undefined,
+          actorUserId: (sessionUser as any)?.id ?? undefined,
+        });
       }
     } catch (e: unknown) {
       alert((e as Error)?.message || 'Error guardando encuentro');
@@ -182,10 +292,25 @@ export default function ManageEncounterPage() {
         recordedAt: new Date().toISOString(),
       });
       const vit = await fetchVitals({ encounterId: encounter!.id });
-      setVitals(vit);
+      setVitals(Array.isArray(vit) ? vit : []);
 
-      // reset parciales
       setVHR(''); setVBP(''); setVSpO2('');
+
+      void createAuditEvent({
+        action: 'encounter.add_vitals',
+        entity: 'encounter',
+        entityId: encounter!.id,
+        metadata: {
+          height: Number(vHeight),
+          weight: Number(vWeight),
+          hr: Number(vHR),
+          bp: vBP,
+          spo2: Number(vSpO2),
+          bmi,
+        },
+        userId: (sessionUser as any)?.id ?? undefined,
+        actorUserId: (sessionUser as any)?.id ?? undefined,
+      });
     } catch (e: unknown) {
       alert((e as Error)?.message || 'Error guardando signos vitales');
     }
@@ -219,83 +344,97 @@ export default function ManageEncounterPage() {
       </div>
 
       {/* Form Encuentro */}
-      <div className="bg-white rounded border p-4">
-        <h2 className="text-lg font-semibold mb-3">Datos del encuentro</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">Motivo</label>
-            <input className="border rounded px-3 py-2 w-full" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo de consulta" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Diagnóstico</label>
-            <input className="border rounded px-3 py-2 w-full" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnóstico principal" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium">Notas</label>
-            <textarea className="border rounded px-3 py-2 w-full" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas adicionales" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Estado</label>
-            <select className="border rounded px-3 py-2 w-full bg-white" value={status} onChange={(e) => setStatus(e.target.value as EncounterStatus)}>
-              <option value="IN_PROGRESS">En progreso</option>
-              <option value="COMPLETED">Completado</option>
-              <option value="CANCELLED">Cancelado</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Signos Vitales */}
-      <div className="bg-white rounded border p-4">
-        <h2 className="text-lg font-semibold mb-3">Signos vitales</h2>
-
-        <ul className="text-sm mb-4">
-          {vitals.length === 0 ? (
-            <li className="text-gray-500">No hay signos vitales registrados</li>
-          ) : (
-            vitals.map(v => (
-              <li key={v.id} className="py-1">
-                <strong>{formatDate(v.recordedAt)}:</strong> {v.height}cm, {v.weight}kg, IMC {v.bmi?.toFixed(2)}, HR {v.hr}, BP {v.bp}, SpO2 {v.spo2}%
-              </li>
-            ))
-          )}
-        </ul>
-
-        <div className="grid md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-sm font-medium">Altura (cm)</label>
-            <input type="number" className="border rounded px-3 py-2 w-full" value={vHeight} onChange={(e) => setVHeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="170" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Peso (kg)</label>
-            <input type="number" className="border rounded px-3 py-2 w-full" value={vWeight} onChange={(e) => setVWeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="70" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">IMC (auto)</label>
-            <input disabled className="border rounded px-3 py-2 w-full bg-gray-100" value={vHeight && vWeight ? (Number(vWeight) / ((Number(vHeight) / 100) ** 2)).toFixed(2) : ''} placeholder="—" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Frecuencia cardiaca (HR)</label>
-            <input type="number" className="border rounded px-3 py-2 w-full" value={vHR} onChange={(e) => setVHR(e.target.value === '' ? '' : Number(e.target.value))} placeholder="72" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Presión arterial (BP)</label>
-            <input className="border rounded px-3 py-2 w-full" value={vBP} onChange={(e) => setVBP(e.target.value)} placeholder="120/80" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">SpO2 (%)</label>
-            <input type="number" className="border rounded px-3 py-2 w-full" value={vSpO2} onChange={(e) => setVSpO2(e.target.value === '' ? '' : Number(e.target.value))} placeholder="98" />
+      <fieldset disabled={creatingMode && !isUserAssignedDoctor()}>
+        <div className="bg-white rounded border p-4">
+          <h2 className="text-lg font-semibold mb-3">Datos del encuentro</h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium">Motivo</label>
+              <input className="border rounded px-3 py-2 w-full" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo de consulta" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Diagnóstico</label>
+              <input className="border rounded px-3 py-2 w-full" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnóstico principal" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium">Notas</label>
+              <textarea className="border rounded px-3 py-2 w-full" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas adicionales" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Estado</label>
+              <select className="border rounded px-3 py-2 w-full bg-white" value={status} onChange={(e) => setStatus(e.target.value as EncounterStatus)}>
+                <option value="IN_PROGRESS">En progreso</option>
+                <option value="COMPLETED">Completado</option>
+                <option value="CANCELLED">Cancelado</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div className="pt-4">
-          <button onClick={addVitals} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700">
-            Guardar signos vitales
-          </button>
+
+        {/* Signos Vitales */}
+        <div className="bg-white rounded border p-4 mt-4">
+          <h2 className="text-lg font-semibold mb-3">Signos vitales</h2>
+
+          <ul className="text-sm mb-4">
+            {vitals.length === 0 ? (
+              <li className="text-gray-500">No hay signos vitales registrados</li>
+            ) : (
+              vitals.map(v => (
+                <li key={v.id} className="py-1">
+                  <strong>{v.recordedAt ? formatDate(v.recordedAt) : ''}:</strong> {v.height}cm, {v.weight}kg, IMC {v.bmi?.toFixed(2)}, HR {v.hr}, BP {v.bp}, SpO2 {v.spo2}%
+                </li>
+              ))
+            )}
+          </ul>
+
+          <div className="grid md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium">Altura (cm)</label>
+              <input type="number" className="border rounded px-3 py-2 w-full" value={vHeight} onChange={(e) => setVHeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="170" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Peso (kg)</label>
+              <input type="number" className="border rounded px-3 py-2 w-full" value={vWeight} onChange={(e) => setVWeight(e.target.value === '' ? '' : Number(e.target.value))} placeholder="70" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">IMC (auto)</label>
+              <input
+                disabled
+                className="border rounded px-3 py-2 w-full bg-gray-100"
+                value={vHeight && vWeight ? (Number(vWeight) / ((Number(vHeight) / 100) ** 2)).toFixed(2) : ''}
+                placeholder="IMC calculado"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Frecuencia cardiaca (HR)</label>
+              <input type="number" className="border rounded px-3 py-2 w-full" value={vHR} onChange={(e) => setVHR(e.target.value === '' ? '' : Number(e.target.value))} placeholder="72" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Presión arterial (BP)</label>
+              <input className="border rounded px-3 py-2 w-full" value={vBP} onChange={(e) => setVBP(e.target.value)} placeholder="120/80" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">SpO2 (%)</label>
+              <input type="number" className="border rounded px-3 py-2 w-full" value={vSpO2} onChange={(e) => setVSpO2(e.target.value === '' ? '' : Number(e.target.value))} placeholder="98" />
+            </div>
+          </div>
+          <div className="pt-4">
+            <button onClick={addVitals} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700">
+              Guardar signos vitales
+            </button>
+          </div>
         </div>
-      </div>
+      </fieldset>
+
+      {/* If the user is not allowed to create (start) an encounter, show an explanatory banner */}
+      {creatingMode && !isUserAssignedDoctor() && (
+        <div className="mt-3 p-3 rounded bg-yellow-50 text-yellow-800 border border-yellow-200">
+          Solo el doctor asignado a la cita puede iniciar este encuentro.
+        </div>
+      )}
 
       {/* Historial del encuentro */}
-      <div className="bg-white rounded border p-4">
+      <div className="bg-white rounded border p-4 mt-4">
         <h2 className="text-lg font-semibold mb-3">Historial del encuentro</h2>
         {auditEncounterId ? (
           <>
@@ -315,8 +454,6 @@ export default function ManageEncounterPage() {
                         ? 'Encuentro creado'
                         : ev.action === 'update'
                         ? 'Encuentro actualizado'
-                        : ev.action === 'status-change'
-                        ? 'Cambio de estado'
                         : ev.action === 'delete'
                         ? 'Encuentro eliminado'
                         : ev.action}
@@ -345,7 +482,7 @@ export default function ManageEncounterPage() {
       </div>
 
       {/* Botones finales */}
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 mt-4">
         <button onClick={() => router.push('/dashboard/appointments')} className="px-5 py-2.5 rounded border text-gray-700 hover:bg-gray-100">
           Cancelar
         </button>

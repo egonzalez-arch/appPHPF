@@ -15,7 +15,7 @@ interface Props {
 
   // CTA para abrir la gestión de encuentro (iniciar/actualizar)
   onOpenEncounter?: (appt: AppointmentEntity) => void;
-  encounterCtaLabel?: string; // 'Iniciar encuentro' | 'Actualizar encuentro'
+  encounterCtaLabel?: string; // 'Iniciar Consulta' | 'Detalles Consulta'
 }
 
 export function AppointmentHistoryPanel({
@@ -25,7 +25,7 @@ export function AppointmentHistoryPanel({
   onChangeStatus,
   loadingStatus,
   onOpenEncounter,
-  encounterCtaLabel = 'Iniciar encuentro',
+  encounterCtaLabel = 'Iniciar Consulta',
 }: Props) {
   const router = useRouter();
   const { data, isLoading, isError, error } = useAppointmentAudit(

@@ -10,6 +10,9 @@ import { AppointmentHistoryPanel } from './AppointmentHistoryPanel';
 import { useUpdateAppointment } from '@/hooks/useAppointments';
 import { useUpdateAppointmentStatus } from '@/hooks/useAppointments';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { createAuditEvent } from '@/lib/api/api.audit';
+import { useDoctorsLite } from '@/hooks/useDoctorsLite';
 
 // NUEVO: para mapear si existe encounter por appointment
 import { fetchEncounters, EncounterEntity } from '@/lib/api/api.encounters';
@@ -33,6 +36,8 @@ export function AppointmentCalendar({
   onHardEditTimes,
   onSoftFail,
 }: CalendarProps) {
+  const { user: sessionUser } = useAuth();
+  const { data: doctors } = useDoctorsLite(true); // load doctors
   const [selectedDetails, setSelectedDetails] = useState<AppointmentEntity | null>(null);
   const updateMut = useUpdateAppointment();
   const statusMut = useUpdateAppointmentStatus();
@@ -63,7 +68,7 @@ export function AppointmentCalendar({
         id: a.id,
         title: a.reason
           ? a.reason.substring(0, 20)
-          : `${a.clinicId.slice(0, 4)}-${a.doctorId.slice(0, 4)}`,
+          : `${a.clinicId?.slice?.(0, 4) ?? ''}-${String(a.doctorId ?? '').slice(0, 4)}`,
         start: a.startAt,
         end: a.endAt,
         backgroundColor: colorForStatus(a.status),
@@ -108,14 +113,122 @@ export function AppointmentCalendar({
     });
   }
 
-  // NUEVO: abrir manage encounter (iniciar/actualizar)
+  function normalizeId(v: any): string | null {
+    if (!v && v !== 0) return null;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object') {
+      return (v.id ?? v._id ?? v.userId ?? v.doctorId ?? v?.user?.id ?? null) || null;
+    }
+    return null;
+  }
+  function userIdCandidates(user: any): (string | null)[] {
+    if (!user) return [];
+    return [
+      normalizeId(user.id),
+      normalizeId(user.sub),
+      normalizeId(user.userId),
+      normalizeId(user.doctorId),
+      normalizeId(user.profile?.id),
+      normalizeId(user.profile?.doctorId),
+    ].filter(Boolean) as string[];
+  }
+  function appointmentDoctorId(appt: AppointmentEntity) {
+    return (
+      normalizeId((appt as any).doctorId) ||
+      normalizeId((appt as any).doctor?.id) ||
+      normalizeId((appt as any).doctor?.user?.id) ||
+      null
+    );
+  }
+
+  // NUEVO: intenta resolver doctor.id desde la tabla de doctores a partir del sessionUser
+  function doctorIdForSessionUser(): string | null {
+    if (!sessionUser || !doctors) return null;
+    // buscar doctor cuyo user.id coincida con sessionUser.id o email
+    const sid = normalizeId(sessionUser.id) || normalizeId(sessionUser.sub) || null;
+    const semail = (sessionUser as any)?.email?.toLowerCase?.() ?? null;
+    const found = doctors.find((d: any) => {
+      const duid = normalizeId(d.user?.id) || normalizeId(d.user?.userId) || null;
+      const demail = (d.user?.email ?? d.email ?? '')?.toLowerCase?.() ?? null;
+      if (sid && duid && sid === duid) return true;
+      if (semail && demail && semail === demail) return true;
+      return false;
+    });
+    return found?.id ?? null;
+  }
+
+  function isUserAssignedDoctorForAppointment(appt: AppointmentEntity) {
+    if (!appt || !sessionUser) return false;
+
+    // 1) Try mapping sessionUser -> doctor record
+    const docIdFromUser = doctorIdForSessionUser();
+    if (docIdFromUser && appt.doctorId && String(appt.doctorId) === String(docIdFromUser)) {
+      return true;
+    }
+
+    // 2) fallback: previous candidate matches (if sessionUser contains doctorId directly)
+    const candidates = userIdCandidates(sessionUser);
+    const apptDocId = appointmentDoctorId(appt);
+    if (apptDocId && candidates.some((c) => c === apptDocId)) return true;
+
+    return false;
+  }
+
+  // NUEVO: abrir manage encounter (iniciar) o ver detalle si ya existe
   function openEncounterManage(appt: AppointmentEntity) {
     const enc = encountersByAppt[appt.id];
+    const userId = (sessionUser as any)?.id ?? (sessionUser as any)?.sub ?? undefined;
+
     if (enc) {
-      router.push(`/dashboard/encounters/manage?encounterId=${enc.id}`);
-    } else {
-      router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`);
+      if (userId) {
+        // Fire-and-forget audit (include userId)
+        void createAuditEvent({
+          action: 'encounter.open_from_calendar',
+          entity: 'encounter',
+          entityId: enc.id,
+          metadata: { appointmentId: appt.id, from: 'calendar' },
+          userId,
+          actorUserId: userId,
+          description: `Open encounter ${enc.id} from calendar`,
+        });
+      }
+      router.push(`/dashboard/encounters/${enc.id}`);
+      return;
     }
+
+    // check authorization
+    if (!isUserAssignedDoctorForAppointment(appt)) {
+      onSoftFail?.('Solo el doctor asignado a la cita puede iniciar el encuentro.');
+
+      if (userId) {
+        void createAuditEvent({
+          action: 'encounter.start_denied',
+          entity: 'appointment',
+          entityId: appt.id,
+          metadata: { reason: 'not_assigned_doctor', from: 'calendar' },
+          userId,
+          actorUserId: userId,
+          description: `Start encounter denied for appointment ${appt.id}`,
+        });
+      }
+      return;
+    }
+
+    // Authorized: record click but do not await audit call (fire-and-forget)
+    if (userId) {
+      void createAuditEvent({
+        action: 'encounter.start_click',
+        entity: 'appointment',
+        entityId: appt.id,
+        metadata: { from: 'calendar' },
+        userId,
+        actorUserId: userId,
+        description: `Start encounter clicked for appointment ${appt.id}`,
+      });
+    }
+
+    router.push(`/dashboard/encounters/manage?appointmentId=${appt.id}`);
   }
 
   return (
@@ -213,10 +326,11 @@ export function AppointmentCalendar({
               },
             );
           }}
-          // NUEVO: CTA para encuentro desde el panel
+          // NUEVO: CTA para encuentro desde el panel -> abrir manage o ver detalle
           onOpenEncounter={(a) => openEncounterManage(a)}
           encounterCtaLabel={
-            encountersByAppt[selectedDetails.id] ? 'Actualizar encuentro' : 'Iniciar encuentro'
+            // Si existe encuentro, mostrar 'Ver detalle' en lugar de 'Actualizar encuentro'
+            encountersByAppt[selectedDetails.id] ? 'Ver detalle' : 'Iniciar encuentro'
           }
         />
       )}
