@@ -55,13 +55,14 @@ export class AuthService {
       role: user.role,
     };
 
-    // IMPORTANTE: aquí debes mapear cómo obtienes el doctorId del usuario.
     // Si tu entidad User tiene un campo doctorId:
     if ((user as any).doctorId) {
       payload.doctorId = (user as any).doctorId;
     }
-    // Si en cambio tienes una relación user.doctor.id, sería algo como:
-    // if ((user as any).doctor?.id) payload.doctorId = (user as any).doctor.id;
+    // Si en cambio tienes una relación user.doctor.id, usa esto y quita lo anterior:
+    // if ((user as any).doctor?.id) {
+    //   payload.doctorId = (user as any).doctor.id;
+    // }
 
     return this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET || 'secret',
@@ -79,12 +80,14 @@ export class AuthService {
       role: user.role,
     };
 
-    // Mismo mapeo de doctorId que arriba
+    // Mismo mapeo que en generateToken
     if ((user as any).doctorId) {
       payload.doctorId = (user as any).doctorId;
     }
-    // o:
-    // if ((user as any).doctor?.id) payload.doctorId = (user as any).doctor.id;
+    // o, si usas relación:
+    // if ((user as any).doctor?.id) {
+    //   payload.doctorId = (user as any).doctor.id;
+    // }
 
     return this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',

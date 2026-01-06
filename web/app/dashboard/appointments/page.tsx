@@ -20,8 +20,6 @@ import { AppointmentCalendar } from '@/components/appointments/AppointmentCalend
 import { AppointmentAuditModal } from '@/components/appointments/AppointmentAuditModal';
 import { useRouter } from 'next/navigation';
 import { createAuditEvent } from '@/lib/api/api.audit';
-
-// NUEVO: para detectar si ya hay encuentro asociado a la cita
 import { fetchEncounters, EncounterEntity as Encounter } from '@/lib/api/api.encounters';
 
 type PendingCreate = {
@@ -82,37 +80,55 @@ export default function AppointmentsPage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const [doctorFilter, setDoctorFilter] = useState('');
+  const [doctorFilter, setDoctorFilter] = useState<string>(''); // se rellenará luego
   const [patientFilter, setPatientFilter] = useState('');
   const [clinicFilter, setClinicFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [rawSearch, setRawSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
-  // Prefill times for create (when coming from calendar selection)
   const [prefillStart, setPrefillStart] = useState<Date | null>(null);
   const [prefillEnd, setPrefillEnd] = useState<Date | null>(null);
-
-  // NUEVO: mapa de encuentros por appointmentId para decidir CTA (Iniciar/Ver detalle)
   const [encountersByAppt, setEncountersByAppt] = useState<Record<string, Encounter>>({});
 
   const debounced = useDebouncedValue(rawSearch, 300);
   const search = debounced.trim().toLowerCase();
+
+  const { data: doctors } = useDoctorsLite(true);
+  const { data: patients } = usePatientsLite(true);
+  const { data: clinics } = useClinicsLite(true);
+
+  // Derivar doctorId de sesión buscando en doctorsLite por userId o email
+  const sessionDoctorId = useMemo(() => {
+    if (!sessionUser || !doctors) return undefined;
+    const userId = (sessionUser as any).userId || (sessionUser as any).id;
+    const email = (sessionUser as any).email;
+
+    const match =
+      doctors.find((d) => d.user?.id === userId) ||
+      doctors.find((d) => d.user?.email === email);
+
+    return match?.id;
+  }, [sessionUser, doctors]);
+
+  // Aplicar filtro inicial cuando tengamos sessionDoctorId
+  useEffect(() => {
+    if (sessionDoctorId && !doctorFilter) {
+      setDoctorFilter(sessionDoctorId);
+    }
+  }, [sessionDoctorId, doctorFilter]);
 
   const filters = useMemo(
     () => ({
       doctorId: doctorFilter || undefined,
       patientId: patientFilter || undefined,
       clinicId: clinicFilter || undefined,
-      status: statusFilter as AppointmentStatus || undefined,
+      status: (statusFilter as AppointmentStatus) || undefined,
     }),
     [doctorFilter, patientFilter, clinicFilter, statusFilter],
   );
 
   const { data: appointments, isLoading, isError, error } = useAppointments(filters);
-  const { data: doctors } = useDoctorsLite(true);
-  const { data: patients } = usePatientsLite(true);
-  const { data: clinics } = useClinicsLite(true);
 
   const createMut = useCreateAppointment();
   const updateMut = useUpdateAppointment();
@@ -142,7 +158,6 @@ export default function AppointmentsPage() {
     }
   }, [successMessage]);
 
-  // NUEVO: cargar encuentros para mapear por appointmentId
   useEffect(() => {
     fetchEncounters()
       .then((list) => {
@@ -280,11 +295,10 @@ export default function AppointmentsPage() {
     return candidates.some((c) => c === apptDocId);
   }
 
-  // NUEVO: CTA de Encuentro que navega a la página de ver o iniciar encuentro
+  // CTA de Encuentro que navega a la página de ver o iniciar encuentro
   function renderEncounterCTA(appt: AppointmentEntity) {
     const enc = encountersByAppt[appt.id];
     if (enc) {
-      // Si ya existe encuentro, no permitir "actualizar", solo ver detalle (solo lectura)
       return (
         <button
           className="px-3 py-1 rounded bg-gray-200 text-gray-800 shadow"
@@ -386,12 +400,15 @@ export default function AppointmentsPage() {
             )}
           </div>
 
+          {/* Filtro doctores – se inicializa con el doctor de sesión si existe */}
           <select
             value={doctorFilter}
             onChange={(e) => setDoctorFilter(e.target.value)}
             className="border px-3 py-2 rounded bg-white"
           >
-            <option value="">Todos Doctores</option>
+            <option value="">
+              {sessionDoctorId ? 'Todos Doctores' : 'Todos Doctores'}
+            </option>
             {doctors?.map((d) => {
               const full = [d.user?.firstName, d.user?.lastName]
                 .filter(Boolean)
@@ -464,7 +481,7 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Mensajes */}
+      {/* Mensajes y errores */}
       {!sessionUser && <div>Inicia sesión para ver citas.</div>}
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm">
@@ -633,7 +650,6 @@ export default function AppointmentsPage() {
                       {a.reason || '-'}
                     </div>
                   </div>
-                  {/* CTA destacado en móvil */}
                   <div className="pt-2">
                     {enc ? (
                       <button
@@ -651,28 +667,30 @@ export default function AppointmentsPage() {
                       >
                         Ver detalle
                       </button>
+                    ) : isUserAssignedDoctorForAppointment(a) ? (
+                      <button
+                        className="w-full px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
+                        disabled={submitting}
+                        onClick={() => {
+                          createAuditEvent({
+                            action: 'encounter.start_click',
+                            entity: 'appointment',
+                            entityId: a.id,
+                            metadata: { from: 'appointments.mobile' },
+                          });
+                          router.push(`/dashboard/encounters/manage?appointmentId=${a.id}`);
+                        }}
+                      >
+                        Iniciar encuentro
+                      </button>
                     ) : (
-                      isUserAssignedDoctorForAppointment(a) ? (
-                        <button
-                          className="w-full px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
-                          disabled={submitting}
-                          onClick={() => {
-                            createAuditEvent({
-                              action: 'encounter.start_click',
-                              entity: 'appointment',
-                              entityId: a.id,
-                              metadata: { from: 'appointments.mobile' },
-                            });
-                            router.push(`/dashboard/encounters/manage?appointmentId=${a.id}`);
-                          }}
-                        >
-                          Iniciar encuentro
-                        </button>
-                      ) : (
-                        <button className="w-full px-3 py-2 rounded bg-gray-100 text-gray-400 shadow cursor-not-allowed" disabled title="Solo el doctor asignado puede iniciar">
-                          Iniciar encuentro
-                        </button>
-                      )
+                      <button
+                        className="w-full px-3 py-2 rounded bg-gray-100 text-gray-400 shadow cursor-not-allowed"
+                        disabled
+                        title="Solo el doctor asignado puede iniciar"
+                      >
+                        Iniciar encuentro
+                      </button>
                     )}
                   </div>
                   <div className="flex gap-4 mt-2 flex-wrap">
@@ -758,8 +776,6 @@ export default function AppointmentsPage() {
           </div>
         </div>
       )}
-
-      {/* ... el resto del archivo permanece igual ... */}
 
       {/* Modal confirm creation */}
       {showConfirmCreate && pendingCreateData && (

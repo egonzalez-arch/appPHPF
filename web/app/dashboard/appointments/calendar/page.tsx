@@ -2,15 +2,18 @@
 
 import dynamic from 'next/dynamic';
 import { useMemo, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useDoctorsLite } from '@/hooks/useDoctorsLite';
 import { usePatientsLite } from '@/hooks/usePatientsLite';
 import { useClinicsLite } from '@/hooks/useClinicsLite';
 import { AppointmentStatus } from '@/lib/api/api.appointments';
-import { useRouter } from 'next/navigation';
 
 // NUEVO: detectar encounter existente
 import { fetchEncounters, EncounterEntity } from '@/lib/api/api.encounters';
+
+// NUEVO: usuario de sesión
+import { useAuth } from '@/context/AuthContext';
 
 const FullCalendar = dynamic(() => import('@fullcalendar/react'), { ssr: false });
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -19,12 +22,25 @@ import interactionPlugin from '@fullcalendar/interaction';
 
 export default function AppointmentsCalendarPage() {
   const router = useRouter();
-  const { data: appts } = useAppointments();
+  const { user } = useAuth();
+
+  // Obtener doctorId desde el usuario de sesión.
+  // Ajusta esta línea según la forma real de tu objeto user.
+  const sessionDoctorId =
+    (user as any)?.doctorId ??
+    (user as any)?.doctor?.id ??
+    undefined;
+
+  // Usar las citas filtradas por el doctor de la sesión
+  const { data: appts } = useAppointments(
+    sessionDoctorId ? { doctorId: sessionDoctorId } : undefined,
+  );
+
   const { data: doctors } = useDoctorsLite(true);
   const { data: patients } = usePatientsLite(true);
   const { data: clinics } = useClinicsLite(true);
 
-  // NUEVO: encounters por appointmentId
+  // encounters por appointmentId
   const [encountersByAppt, setEncountersByAppt] = useState<Record<string, EncounterEntity>>({});
 
   useEffect(() => {
@@ -99,7 +115,7 @@ export default function AppointmentsCalendarPage() {
           slotMaxTime="21:00:00"
           height="auto"
           eventClick={(info) => {
-            // NUEVO: navegar a ver/iniciar encuentro
+            // Navegar a ver/iniciar encuentro
             openEncounterManage(info.event.id);
           }}
         />
