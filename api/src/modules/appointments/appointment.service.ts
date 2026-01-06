@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Appointment } from './appointment.entity';
-  import { Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
@@ -58,18 +58,30 @@ export class AppointmentService {
       throw new BadRequestException('endAt must be after startAt');
     }
 
-    // Overlap check
-    const overlap = await this.repo
+    // 1) Overlap por doctor
+    const doctorOverlap = await this.repo
       .createQueryBuilder('a')
       .where('a.doctorId = :doctorId', { doctorId: dto.doctorId })
-      .andWhere('(a.startAt < :newEnd AND a.endAt > :newStart)', {
-        newStart: start.toISOString(),
-        newEnd: end.toISOString(),
-      })
+      .andWhere('a.startAt < :newEnd', { newEnd: end })
+      .andWhere('a.endAt > :newStart', { newStart: start })
       .getOne();
 
-    if (overlap) {
+    if (doctorOverlap) {
       throw new BadRequestException('Doctor already has overlapping appointment');
+    }
+
+    // 2) Overlap por paciente (cualquier doctor)
+    const patientOverlap = await this.repo
+      .createQueryBuilder('a')
+      .where('a.patientId = :patientId', { patientId: dto.patientId })
+      .andWhere('a.startAt < :newEnd', { newEnd: end })
+      .andWhere('a.endAt > :newStart', { newStart: start })
+      .getOne();
+
+    if (patientOverlap) {
+      throw new BadRequestException(
+        'El paciente ya tiene otra cita que se solapa con este horario.',
+      );
     }
 
     const appointment = this.repo.create({
@@ -122,21 +134,37 @@ export class AppointmentService {
       if (nextEnd <= nextStart) {
         throw new BadRequestException('endAt must be after startAt');
       }
-      const overlap = await this.repo
+
+      const doctorIdToUse = dto.doctorId ?? appt.doctorId;
+      const patientIdToUse = dto.patientId ?? appt.patientId;
+
+      // 1) Overlap por doctor (excluyendo esta cita)
+      const doctorOverlap = await this.repo
         .createQueryBuilder('a')
-        .where('a.doctorId = :doctorId', {
-          doctorId: dto.doctorId ?? appt.doctorId,
-        })
-        .andWhere('(a.startAt < :newEnd AND a.endAt > :newStart)', {
-          newStart: nextStart.toISOString(),
-          newEnd: nextEnd.toISOString(),
-        })
+        .where('a.doctorId = :doctorId', { doctorId: doctorIdToUse })
+        .andWhere('a.startAt < :newEnd', { newEnd: nextEnd })
+        .andWhere('a.endAt > :newStart', { newStart: nextStart })
         .andWhere('a.id <> :id', { id })
         .getOne();
 
-      if (overlap) {
+      if (doctorOverlap) {
         throw new BadRequestException(
           'Doctor already has overlapping appointment',
+        );
+      }
+
+      // 2) Overlap por paciente (excluyendo esta cita)
+      const patientOverlap = await this.repo
+        .createQueryBuilder('a')
+        .where('a.patientId = :patientId', { patientId: patientIdToUse })
+        .andWhere('a.startAt < :newEnd', { newEnd: nextEnd })
+        .andWhere('a.endAt > :newStart', { newStart: nextStart })
+        .andWhere('a.id <> :id', { id })
+        .getOne();
+
+      if (patientOverlap) {
+        throw new BadRequestException(
+          'El paciente ya tiene otra cita que se solapa con este horario.',
         );
       }
     }
