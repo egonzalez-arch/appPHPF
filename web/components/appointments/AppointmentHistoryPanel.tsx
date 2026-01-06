@@ -15,7 +15,7 @@ interface Props {
 
   // CTA para abrir la gestión de encuentro (iniciar/actualizar)
   onOpenEncounter?: (appt: AppointmentEntity) => void;
-  encounterCtaLabel?: string; // 'Iniciar Consulta' | 'Detalles Consulta'
+  encounterCtaLabel?: string; // 'Iniciar encuentro' | 'Ver detalle'
 }
 
 export function AppointmentHistoryPanel({
@@ -25,7 +25,7 @@ export function AppointmentHistoryPanel({
   onChangeStatus,
   loadingStatus,
   onOpenEncounter,
-  encounterCtaLabel = 'Iniciar Consulta',
+  encounterCtaLabel = 'Iniciar encuentro',
 }: Props) {
   const router = useRouter();
   const { data, isLoading, isError, error } = useAppointmentAudit(
@@ -55,18 +55,22 @@ export function AppointmentHistoryPanel({
   }
 
   function clinicName(id: string) {
-    return clinics?.find(c => c.id === id)?.name || id;
+    return clinics?.find((c) => c.id === id)?.name || id;
   }
 
   function doctorName(id: string) {
-    const d = doctors?.find(x => x.id === id);
-    const full = [d?.user?.firstName, d?.user?.lastName].filter(Boolean).join(' ');
+    const d = doctors?.find((x) => x.id === id);
+    const full = [d?.user?.firstName, d?.user?.lastName]
+      .filter(Boolean)
+      .join(' ');
     return full || id;
   }
 
   function patientName(id: string) {
-    const p = patients?.find(x => x.id === id);
-    const full = [p?.user?.firstName, p?.user?.lastName].filter(Boolean).join(' ');
+    const p = patients?.find((x) => x.id === id);
+    const full = [p?.user?.firstName, p?.user?.lastName]
+      .filter(Boolean)
+      .join(' ');
     return full || id;
   }
 
@@ -112,13 +116,16 @@ export function AppointmentHistoryPanel({
 
         <div className="p-4 space-y-3 text-sm overflow-y-auto">
           <div>
-            <span className="font-medium">Clínica:</span> {clinicName(appointment.clinicId)}
+            <span className="font-medium">Clínica:</span>{' '}
+            {clinicName(appointment.clinicId)}
           </div>
           <div>
-            <span className="font-medium">Doctor:</span> {doctorName(appointment.doctorId)}
+            <span className="font-medium">Doctor:</span>{' '}
+            {doctorName(appointment.doctorId)}
           </div>
           <div>
-            <span className="font-medium">Paciente:</span> {patientName(appointment.patientId)}
+            <span className="font-medium">Paciente:</span>{' '}
+            {patientName(appointment.patientId)}
           </div>
           <div>
             <span className="font-medium">Inicio:</span>{' '}
@@ -147,13 +154,45 @@ export function AppointmentHistoryPanel({
               Editar
             </button>
 
+            {/* Combobox con confirmación */}
             <select
               disabled={loadingStatus}
               value=""
               className="px-2 py-1 border rounded text-sm bg-white"
               onChange={(e) => {
                 const v = e.target.value as AppointmentStatus;
-                if (v) onChangeStatus(appointment, v);
+                if (!v) return;
+
+                let message = '';
+                switch (v) {
+                  case 'PENDING':
+                    message =
+                      '¿Deseas marcar la cita como Pendiente?';
+                    break;
+                  case 'CONFIRMED':
+                    message =
+                      '¿Deseas marcar la cita como Confirmada?';
+                    break;
+                  case 'CANCELLED':
+                    message =
+                      '¿Deseas cancelar esta cita?';
+                    break;
+                  case 'COMPLETED':
+                    message =
+                      '¿Deseas marcar esta cita como Completada?';
+                    break;
+                  default:
+                    message = `¿Deseas cambiar el estado de la cita a "${v}"?`;
+                }
+
+                const ok = window.confirm(message);
+                if (!ok) {
+                  e.target.value = '';
+                  return;
+                }
+
+                onChangeStatus(appointment, v);
+                e.target.value = '';
               }}
             >
               <option value="">Cambiar estado</option>
@@ -163,9 +202,18 @@ export function AppointmentHistoryPanel({
               <option value="COMPLETED">Completada</option>
             </select>
 
+            {/* Botón Iniciar encuentro con confirmación */}
             {onOpenEncounter && (
               <button
-                onClick={() => onOpenEncounter(appointment)}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      '¿Deseas iniciar el encuentro para esta cita?',
+                    )
+                  ) {
+                    onOpenEncounter(appointment);
+                  }
+                }}
                 className="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
               >
                 {encounterCtaLabel}
@@ -173,7 +221,11 @@ export function AppointmentHistoryPanel({
             )}
 
             <button
-              onClick={() => router.push(`/dashboard/patients/${appointment.patientId}/record`)}
+              onClick={() =>
+                router.push(
+                  `/dashboard/patients/${appointment.patientId}/record`,
+                )
+              }
               className="px-3 py-1 text-sm rounded bg-purple-600 text-white hover:bg-purple-700"
             >
               Ver expediente
@@ -185,7 +237,9 @@ export function AppointmentHistoryPanel({
           <h3 className="font-semibold">Historial</h3>
           {isLoading && <div>Cargando...</div>}
           {isError && (
-            <div className="text-red-600 text-xs">{String(error)}</div>
+            <div className="text-red-600 text-xs">
+              {String(error)}
+            </div>
           )}
           {!isLoading && data?.length === 0 && (
             <div className="text-gray-500 text-xs">Sin eventos.</div>
@@ -210,12 +264,13 @@ export function AppointmentHistoryPanel({
 {JSON.stringify(ev.metadataJson.changes, null, 2)}
                   </pre>
                 )}
-                {ev.metadataJson?.oldStatus && ev.metadataJson?.newStatus && (
-                  <div className="text-[11px] text-gray-600 mt-1">
-                    {labelStatus(ev.metadataJson.oldStatus)} →{' '}
-                    {labelStatus(ev.metadataJson.newStatus)}
-                  </div>
-                )}
+                {ev.metadataJson?.oldStatus &&
+                  ev.metadataJson?.newStatus && (
+                    <div className="text-[11px] text-gray-600 mt-1">
+                      {labelStatus(ev.metadataJson.oldStatus)} →{' '}
+                      {labelStatus(ev.metadataJson.newStatus)}
+                    </div>
+                  )}
               </li>
             ))}
           </ol>

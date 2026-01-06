@@ -51,7 +51,7 @@ function parseErr(txt: string) {
   }
 }
 
-function parseJSON<T=any>(txt: string): T {
+function parseJSON<T = any>(txt: string): T {
   try {
     return JSON.parse(txt);
   } catch {
@@ -78,11 +78,16 @@ export async function fetchAppointments(params?: {
   return res.json();
 }
 
-export async function createAppointment(data: CreateAppointmentInput): Promise<AppointmentEntity> {
+export async function createAppointment(
+  data: CreateAppointmentInput,
+): Promise<AppointmentEntity> {
   const res = await fetch(`${API_URL}/appointments`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrf(),
+    },
     body: JSON.stringify(data),
   });
   const txt = await res.text();
@@ -90,11 +95,17 @@ export async function createAppointment(data: CreateAppointmentInput): Promise<A
   return parseJSON<AppointmentEntity>(txt);
 }
 
-export async function updateAppointment(id: string, data: UpdateAppointmentInput): Promise<AppointmentEntity> {
+export async function updateAppointment(
+  id: string,
+  data: UpdateAppointmentInput,
+): Promise<AppointmentEntity> {
   const res = await fetch(`${API_URL}/appointments/${id}`, {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrf(),
+    },
     body: JSON.stringify(data),
   });
   const txt = await res.text();
@@ -102,11 +113,22 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
   return parseJSON<AppointmentEntity>(txt);
 }
 
-export async function updateAppointmentStatus(id: string, status: AppointmentStatus): Promise<AppointmentEntity> {
+/**
+ * Actualiza solo el estado de la cita usando el endpoint:
+ * PATCH /appointments/:id/status
+ * Body: { status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' }
+ */
+export async function updateAppointmentStatus(
+  id: string,
+  status: AppointmentStatus,
+): Promise<AppointmentEntity> {
   const res = await fetch(`${API_URL}/appointments/${id}/status`, {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrf(),
+    },
     body: JSON.stringify({ status }),
   });
   const txt = await res.text();

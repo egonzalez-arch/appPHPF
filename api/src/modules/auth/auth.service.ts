@@ -13,14 +13,14 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-async register(dto: RegisterDto) {
-  const exists = await this.repo.findOne({ where: { email: dto.email } });
-  if (exists) throw new BadRequestException('Email taken');
-  const passwordHash = await bcrypt.hash(dto.password, 10);
-  const { password, ...rest } = dto; // Elimina password
-  const user = this.repo.create({ ...rest, passwordHash });
-  return this.repo.save(user);
-}
+  async register(dto: RegisterDto) {
+    const exists = await this.repo.findOne({ where: { email: dto.email } });
+    if (exists) throw new BadRequestException('Email taken');
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const { password, ...rest } = dto; // Elimina password
+    const user = this.repo.create({ ...rest, passwordHash });
+    return this.repo.save(user);
+  }
 
   async login(dto: LoginDto) {
     const user = await this.validateUser(dto);
@@ -45,16 +45,47 @@ async register(dto: RegisterDto) {
     }
   }
 
+  /**
+   * Genera el access token incluyendo doctorId (si existe) en el payload.
+   */
   generateToken(user: User) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload: any = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    // IMPORTANTE: aquí debes mapear cómo obtienes el doctorId del usuario.
+    // Si tu entidad User tiene un campo doctorId:
+    if ((user as any).doctorId) {
+      payload.doctorId = (user as any).doctorId;
+    }
+    // Si en cambio tienes una relación user.doctor.id, sería algo como:
+    // if ((user as any).doctor?.id) payload.doctorId = (user as any).doctor.id;
+
     return this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET || 'secret',
       expiresIn: '1h',
     });
   }
 
+  /**
+   * Genera el refresh token incluyendo doctorId (si existe) en el payload.
+   */
   generateRefreshToken(user: User) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload: any = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    // Mismo mapeo de doctorId que arriba
+    if ((user as any).doctorId) {
+      payload.doctorId = (user as any).doctorId;
+    }
+    // o:
+    // if ((user as any).doctor?.id) payload.doctorId = (user as any).doctor.id;
+
     return this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
       expiresIn: '7d',

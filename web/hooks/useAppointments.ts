@@ -71,7 +71,12 @@ export function useUpdateAppointment() {
     onSuccess: (updated) => {
       qc.setQueryData<AppointmentEntity[] | undefined>(
         appointmentsKeys.list(),
-        (prev) => prev ? prev.map(a => a.id === updated.id ? { ...a, ...updated } : a) : [updated]
+        (prev) =>
+          prev
+            ? prev.map(a =>
+                a.id === updated.id ? { ...a, ...updated } : a,
+              )
+            : [updated],
       );
       qc.invalidateQueries({ queryKey: appointmentsKeys.list() });
     },
@@ -89,7 +94,12 @@ export function useUpdateAppointmentStatus() {
     onSuccess: (updated) => {
       qc.setQueryData<AppointmentEntity[] | undefined>(
         appointmentsKeys.list(),
-        (prev) => prev ? prev.map(a => a.id === updated.id ? { ...a, ...updated } : a) : [updated]
+        (prev) =>
+          prev
+            ? prev.map(a =>
+                a.id === updated.id ? { ...a, ...updated } : a,
+              )
+            : [updated],
       );
     },
   });
@@ -101,7 +111,8 @@ export function useDeleteAppointment() {
     mutationFn: ({ id }) => deleteAppointment(id),
     onSuccess: (_ , { id }) => {
       qc.setQueryData<AppointmentEntity[] | undefined>(
-        appointmentsKeys.list(), (prev) => prev ? prev.filter(a => a.id !== id) : prev
+        appointmentsKeys.list(),
+        (prev) => (prev ? prev.filter(a => a.id !== id) : prev),
       );
     },
   });
