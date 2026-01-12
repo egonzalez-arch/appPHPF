@@ -18,7 +18,11 @@ import PatientForm from '@/components/forms/PatientForm';
 function buildEmergencyContactText(ec: any): string {
   if (!ec) return '-';
   if (typeof ec === 'string') {
-    try { ec = JSON.parse(ec); } catch { return '-'; }
+    try {
+      ec = JSON.parse(ec);
+    } catch {
+      return '-';
+    }
   }
   if (typeof ec !== 'object' || Array.isArray(ec)) return '-';
   const parts: string[] = [];
@@ -196,6 +200,7 @@ export default function PatientsPageContent() {
         </div>
       )}
 
+      {/* Tabla desktop */}
       <div className="overflow-x-auto bg-white rounded shadow border">
         <table className="w-full">
           <thead>
@@ -269,13 +274,22 @@ export default function PatientsPageContent() {
                       </span>
                     </label>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 space-x-2 whitespace-nowrap">
                     <button
                       className="text-teal-600 hover:underline"
                       onClick={() => handleEdit(p)}
                       disabled={submitting}
                     >
                       Editar
+                    </button>
+                    {/* NUEVO: Ver historial médico */}
+                    <button
+                      className="text-indigo-600 hover:underline"
+                      onClick={() =>
+                        (window.location.href = `/dashboard/patients/${p.id}/record`)
+                      }
+                    >
+                      Ver historial
                     </button>
                   </td>
                 </tr>
@@ -339,13 +353,23 @@ export default function PatientsPageContent() {
                   {active ? 'Activo' : 'Inactivo'}
                 </div>
               </div>
-              <div className="flex gap-4 mt-3 items-center">
+              <div className="flex gap-4 mt-3 items-center flex-wrap">
                 <button
                   className="text-teal-600 hover:underline"
                   onClick={() => handleEdit(p)}
                   disabled={submitting}
                 >
                   Editar
+                </button>
+                {/* NUEVO: Ver historial en móvil */}
+                <button
+                  className="text-indigo-600 hover:underline"
+                  onClick={() =>
+                    (window.location.href = `/dashboard/patients/${p.id}/record`)
+                  }
+                  disabled={submitting}
+                >
+                  Ver historial
                 </button>
                 <label className="flex items-center cursor-pointer">
                   <input
@@ -395,7 +419,6 @@ export default function PatientsPageContent() {
                 if (editPatient) {
                   updateMutation.mutate({ id: editPatient.id, data });
                 } else {
-                  // data.user & data.patient
                   if (data?.user && data?.patient) {
                     createCompositeMutation.mutate(data);
                   } else {
